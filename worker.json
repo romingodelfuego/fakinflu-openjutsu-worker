@@ -1,0 +1,16 @@
+{
+  "name": "openjutsu",
+  "repo": "romingodelfuego/fakinflu-openjutsu-worker",
+  "visibility": "private",
+  "description": "fakinflu RunPod serverless worker: openjutsu (Comfy-Org/Wan_2.2_ComfyUI_Repackaged)",
+  "endpoint": {
+    "name": "romingodelfuego/fakinflu-openjutsu-worker",
+    "env_var": "RUNPOD_OPENJUTSU_ENDPOINT_ID",
+    "gpu_pools": ["AMPERE_24"],
+    "workers": {"min": 0, "max": 2, "idleTimeout": 5},
+    "timeout_ms": 600000,
+    "flashboot": "FLASHBOOT",
+    "disk_gb": 40,
+    "env": {}
+  }
+}
