@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # fakinflu — poids du worker openjutsu (image recast + replace), BAKES dans l'image.
-# Cibles core / int8 / dwpose : memes fichiers, commits et sha256 que wananimate/serverless/download_models.sh
+# Cibles core / dwpose : memes fichiers, commits et sha256 que wananimate/serverless/download_models.sh ; int8 : unet
+# Wan2.2-Animate-14B v1 (celui des graphes d'Openjutsu), pas Wan-Animate-2.
 # (sans la LoRA lightx2v, inutile : Openjutsu echantillonne 20 etapes a CFG 1 sans distillation).
 # sam2 : checkpoint SAM 2.1 Hiera Large fp16 lu par openjutsu/sam2_mask.py (chargement strict du state dict).
 #
 #   MODELS_DIR=/comfyui/models ./download_models.sh core     # ~8 Go : umT5 fp8, CLIP vision H, VAE Wan 2.1
-#   MODELS_DIR=/comfyui/models ./download_models.sh int8     # ~17 Go : Wan 2.2 Animate 14B int8 convrot
+#   MODELS_DIR=/comfyui/models ./download_models.sh int8     # ~18 Go : Wan2.2-Animate-14B (v1) int8 convrot
 #   MODELS_DIR=<controlnet_aux>/ckpts ./download_models.sh dwpose
 #   MODELS_DIR=/models/sam2 ./download_models.sh sam2       # ~0,45 Go
 set -euo pipefail
@@ -32,7 +33,8 @@ DL() {
   test -s "$dest"
 }
 
-WA=e7181fe1896b7f2ce34120d1a3663413548240d7   # Comfy-Org/Wan-Animate-2 @ 2026-10-14
+WA=e7181fe1896b7f2ce34120d1a3663413548240d7   # Comfy-Org/Wan-Animate-2 @ 2026-10-14 (encodeurs, CLIP vision, VAE)
+W22=ee6f4a40737a995bf5818954cfce6d59443b0f04  # Comfy-Org/Wan_2.2_ComfyUI_Repackaged @ 2026-10-22 (unet Animate v1)
 
 case "${1:-}" in
   core)
@@ -43,8 +45,11 @@ case "${1:-}" in
     DL Comfy-Org/Wan-Animate-2 "$WA" vae/Wan2_1_VAE_bf16.safetensors vae \
        1ab9a32cc2c740f6e39d80d367ce5dcc28db8c71b79b28670546b8973e9d75f9 ;;
   int8)
-    DL Comfy-Org/Wan-Animate-2 "$WA" diffusion_models/wan_animate_2_int8_convrot.safetensors diffusion_models \
-       0580ecdd65e47e97c30df9670d13a6c4a131d26de5a1faf2ccc78392d5167584 ;;
+    # Wan2.2-Animate-14B (v1), le modele des graphes d'Openjutsu (WanAnimateToVideo : pose, decor, masque).
+    # PAS Comfy-Org/Wan-Animate-2 (Wan2.2-Animate-2-14B, noeud WanAnimate2ToVideo, sans mode remplacement) :
+    # avec ce checkpoint, le mode replace rendait la zone masquee en silhouette grise (essai 5, 2026-10-22).
+    DL Comfy-Org/Wan_2.2_ComfyUI_Repackaged "$W22" split_files/diffusion_models/wan2.2_animate_14B_int8_convrot.safetensors diffusion_models \
+       419aa0b3d9079a8a39126f2894c3cb2427c288189d2dc8342c61cf0663731cb3 ;;
   dwpose)
     # MODELS_DIR = <comfyui_controlnet_aux>/ckpts, sous-dossier = depot HF (custom_hf_download du pack).
     DL hr16/yolox-onnx a124b32c3b7c5cebda1c7cd96178f0f9d2050125 yolox_l.torchscript.pt hr16/yolox-onnx \

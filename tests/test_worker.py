@@ -74,7 +74,7 @@ def _window_graphs(preset_id, total=33, names=None):
 
 def test_recast_graph_portrait():
     (g,) = _window_graphs("anime-recast", names={"video": "oj_x_input.mp4", "ref": "oj_x_ref.png"})
-    assert g["1"]["inputs"]["unet_name"] == "wan_animate_2_int8_convrot.safetensors"
+    assert g["1"]["inputs"]["unet_name"] == "wan2.2_animate_14B_int8_convrot.safetensors"
     assert g["2"]["inputs"]["clip_name"] == "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
     assert (g["30"]["inputs"]["width"], g["30"]["inputs"]["height"]) == PORTRAIT
     assert g["30"]["inputs"]["length"] == 33 and g["30"]["inputs"]["video_frame_offset"] == 0
@@ -97,7 +97,7 @@ def test_replace_graph_portrait():
     (g,) = _window_graphs("photoreal-replace", names={"video": "v.mp4", "ref": "r.png", "mask": "m.mkv"})
     assert {g[k]["class_type"] for k in g} >= {"WanAnimateToVideo", "DWPreprocessor", "ThresholdMask", "GrowMask",
                                                "ImageCompositeMasked", "EmptyImage", "TrimVideoLatent", "SaveVideo"}
-    assert g["1"]["inputs"]["unet_name"] == "wan_animate_2_int8_convrot.safetensors"
+    assert g["1"]["inputs"]["unet_name"] == "wan2.2_animate_14B_int8_convrot.safetensors"
     assert g["2"]["inputs"]["clip_name"] == "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
     for node in ("30", "24"):
         assert (g[node]["inputs"]["width"], g[node]["inputs"]["height"]) == PORTRAIT

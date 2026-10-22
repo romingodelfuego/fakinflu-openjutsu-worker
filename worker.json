@@ -3,27 +3,31 @@
   "repo": "romingodelfuego/fakinflu-openjutsu-worker",
   "visibility": "private",
   "description": "fakinflu RunPod serverless worker: Openjutsu (SydFloyd/openjutsu, open source Genjutsu clone) on ComfyUI. Image Dockerfile: recast + replace (Wan 2.2 Animate 14B int8, DWPose) and SAM 2.1 click masks. Inputs: normalized clip (16 fps, 480x832 or 832x480), reference image, mask. Outputs: mask.mkv, result.mp4.",
-  "license": "Openjutsu code: Apache-2.0 (NOTICE). Wan 2.2 Animate weights (Comfy-Org/Wan-Animate-2): review upstream Wan 2.2 licence; umT5 / CLIP vision: Apache-2.0; DWPose TorchScript, SAM 2.1 (Kijai/sam2-safetensors): Apache-2.0 — review before commercial use",
+  "license": "Openjutsu code: Apache-2.0 (NOTICE). Wan2.2-Animate-14B weights (Comfy-Org/Wan_2.2_ComfyUI_Repackaged): review upstream Wan 2.2 licence; umT5 / CLIP vision: Apache-2.0; DWPose TorchScript, SAM 2.1 (Kijai/sam2-safetensors): Apache-2.0 — review before commercial use",
   "endpoint": {
     "name": "fakinflu-openjutsu-worker",
     "env_var": "RUNPOD_OPENJUTSU_ENDPOINT_ID",
     "gpu_pools": [
-      "AMPERE_48",
       "ADA_48_PRO"
     ],
     "workers": {
       "min": 0,
-      "max": 2,
+      "max": 1,
       "idleTimeout": 5
     },
-    "timeout_ms": 3600000,
+    "timeout_ms": 600000,
     "flashboot": "FLASHBOOT",
-    "disk_gb": 80,
+    "disk_gb": 100,
     "env": {
       "COMFY_EXTRA_ARGS": "--disable-pinned-memory"
     },
-    "notes": "Meme pool que wananimate (Wan 14B). Serverless (catalogue RunPod 2026-10) : AMPERE_48 ~1,22 $/h, ADA_48_PRO ~1,75 $/h -> pire cas 1,75 $/h. Image ~30 Go (int8 ~17 Go + encodeurs ~8 Go + DWPose + SAM 2.1). COMFY_EXTRA_ARGS modifiable sans rebuild.",
-    "price_per_h": 1.75
+    "notes": "Reglages reels de l'endpoint (console, 2026-10-22) : ADA_48_PRO en excluant L40, L40S et RTX 6000 Ada, soit PRO 6000 MIG 48GB (1,75 $/h serverless, catalogue RunPod 2026-10-22). Timeout 600 s : un job (sonde, masque, generation) doit tenir en 10 min, les clips entiers demandent plus. Image ~30 Go (unet Wan2.2-Animate-14B int8 ~18 Go + encodeurs ~8 Go + DWPose + SAM 2.1). COMFY_EXTRA_ARGS modifiable sans rebuild.",
+    "price_per_h": 1.75,
+    "excluded_gpu_types": [
+      "NVIDIA L40",
+      "NVIDIA L40S",
+      "NVIDIA RTX 6000 Ada Generation"
+    ]
   },
-  "version": "v1.0.0"
+  "version": "v1.0.1"
 }
