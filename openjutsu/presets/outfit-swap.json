@@ -1,0 +1,14 @@
+{
+ "id": "outfit-swap",
+ "mode": "swap",
+ "workflow": "swap_wan_vace",
+ "prompt": "the reference outfit worn naturally, realistic fabric folds",
+ "requires_reference_image": true,
+ "params": {
+  "steps": 12,
+  "cfg": 3.0,
+  "strength": 1.0,
+  "mask_expand": 8,
+  "shift": 5.0
+ }
+}

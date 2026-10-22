@@ -1,0 +1,14 @@
+{
+ "id": "8mm-vintage",
+ "mode": "restyle",
+ "workflow": "restyle_wan_vace_depth",
+ "prompt": "1970s 8mm home film, grain, faded warm color, light leaks",
+ "requires_reference_image": false,
+ "params": {
+  "steps": 20,
+  "cfg": 3.0,
+  "strength": 1.0,
+  "mask_expand": 8,
+  "shift": 8.0
+ }
+}

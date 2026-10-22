@@ -1,0 +1,14 @@
+{
+ "id": "ghibli-watercolor",
+ "mode": "restyle",
+ "workflow": "restyle_wan_vace_depth",
+ "prompt": "hand-painted watercolor animation, soft pastel palette",
+ "requires_reference_image": true,
+ "params": {
+  "steps": 20,
+  "cfg": 3.0,
+  "strength": 1.0,
+  "mask_expand": 8,
+  "shift": 8.0
+ }
+}

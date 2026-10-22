@@ -1,0 +1,14 @@
+{
+ "id": "robot-recast",
+ "mode": "recast",
+ "workflow": "recast_wan22_animate",
+ "prompt": "chrome humanoid robot with glowing joints",
+ "requires_reference_image": true,
+ "params": {
+  "steps": 20,
+  "cfg": 1.0,
+  "strength": 1.0,
+  "mask_expand": 8,
+  "shift": 5.0
+ }
+}

@@ -1,0 +1,14 @@
+{
+ "id": "claymation",
+ "mode": "restyle",
+ "workflow": "restyle_wan_vace_depth",
+ "prompt": "stop-motion claymation, plasticine textures, soft studio light",
+ "requires_reference_image": true,
+ "params": {
+  "steps": 20,
+  "cfg": 3.0,
+  "strength": 1.0,
+  "mask_expand": 8,
+  "shift": 8.0
+ }
+}

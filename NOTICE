@@ -1,0 +1,27 @@
+fakinflu-openjutsu-worker
+Copyright 2026 romingodelfuego
+
+This worker includes code and data from Openjutsu:
+  https://github.com/SydFloyd/openjutsu
+  commit f783a001ff3ceae4711a592623587224bf87f46c (2026-10-17)
+  Copyright SydFloyd, licensed under the Apache License, Version 2.0 (LICENSE.openjutsu).
+
+Files taken from Openjutsu:
+  openjutsu/video.py              app/video.py — MODIFIED: normalize() keeps the orientation of the source
+                                  (480x832 for a portrait clip, target_size()); docstring.
+  openjutsu/sam2_mask.py          app/sam2_mask.py — MODIFIED: docstring, release() added.
+  openjutsu/graph.py              workflow() and the window loop of generate() from app/main.py — MODIFIED:
+                                  no FastAPI / comfy-sdk; real frame size written into WanAnimateToVideo,
+                                  WanVaceToVideo and EmptyImage; "replace" mode; mask_expand for swap and
+                                  replace; OJ_UNET_DTYPE.
+  openjutsu/workflows/recast_wan22_animate.json   MODIFIED: unet_name and clip_name match the weights baked
+                                  in this image (wan_animate_2_int8_convrot, umt5_xxl_fp8_e4m3fn_scaled).
+  openjutsu/workflows/swap_wan_vace.json, restyle_wan_vace_depth.json   unchanged.
+  openjutsu/presets/*.json        unchanged, except photoreal-replace.json (fakinflu, new).
+
+New in this worker (fakinflu): handler.py, openjutsu/workflows/replace_wan22_animate.json (Wan 2.2 Animate
+replacement mode: pose + original background + SAM 2 mask), presets/photoreal-replace.json, Dockerfile,
+download_models.sh, check_weights.py, tests/, transfer.py (fakinflu canonical copy).
+
+Third-party components installed at build time: ComfyUI (runpod/worker-comfyui 5.10.0-base, GPL-3.0),
+comfyui_controlnet_aux a587a4c1 (Apache-2.0), SAM 2 2b90b9f5 (Apache-2.0). Model weights: see worker.json.

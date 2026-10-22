@@ -1,27 +1,36 @@
-# Worker RunPod : openjutsu
+# fakinflu — worker `openjutsu`
 
-Modèle : `Comfy-Org/Wan_2.2_ComfyUI_Repackaged`. Dépôt : https://github.com/romingodelfuego/fakinflu-openjutsu-worker, monté en sous-module dans fakinflu.
-**La source fait foi ici** : les changements passent par des PR sur ce dépôt.
+[Openjutsu](https://github.com/SydFloyd/openjutsu) (clone open source de Higgsfield Genjutsu, commit
+`f783a001`, Apache-2.0, voir `NOTICE`) en serverless RunPod, sans FastAPI ni comfy-sdk : le handler
+soumet les graphes d'Openjutsu au ComfyUI local de l'image, fenêtre par fenêtre.
 
-## Cycle de vie (depuis fakinflu)
+| Image | Modes | Endpoint |
+| --- | --- | --- |
+| `Dockerfile` | `recast`, `replace` (Wan 2.2 Animate 14B int8, DWPose) + masque SAM 2.1 | `fakinflu-openjutsu-worker` |
+| `Dockerfile.vace` (à venir) | `swap`, `restyle` (Wan 2.1 VACE 14B) | `fakinflu-openjutsu-vace-worker` |
 
-```bash
-make worker-status W=openjutsu                  # sous-module vs main vs dernière release (0 crédit)
-make worker-bump W=openjutsu [BUMP=minor] PR=1  # VERSION + worker.json dans la PR
-# merge de la PR sur main = build RunPod (chaque push sur main reconstruit l'image)
-make worker-release W=openjutsu NOTES="..."     # tag vX.Y.Z + GitHub Release, puis git add du sous-module
-```
-
-**Première release seulement** : il faut lier le dépôt dans la console RunPod
-(**Serverless → New Endpoint → Import Git Repository**). Appliquer ensuite les réglages
-de `worker.json` (GPU, workers, timeouts) et noter l'ID dans `.env` → `RUNPOD_OPENJUTSU_ENDPOINT_ID`.
-Claude peut faire tout ça à ta place (skill `deploy-worker`).
-
-## Contrat d'API
+## Contrat (`contracts/openjutsu.input.schema.json` côté fakinflu)
 
 ```json
-{"input": {"items": [{"id": "a", "...": "..."}]}}
-→ {"results": [{"id": "a", "...": "..."}, {"id": "b", "error": "..."}]}
+{"input": {"run_id": "…", "r2": true,
+  "inputs":  {"video": {…}, "ref": {…}, "mask": {…}},
+  "outputs": {"mask": {…}, "mask_preview": {…}, "video": {…}, "preview": {…}, "probe": {…}},
+  "params": {"action": "probe|mask|generate", "points": [[x, y, 1]], "preset": "photoreal-replace",
+             "prompt": "", "seed": 42, "max_frames": 33, "steps": null, "cfg": null, "shift": null}}}
 ```
 
-Test local du handler (sur une machine GPU) : `python handler.py --test_input "$(cat test_input.json)"`.
+- `video` : clip **déjà normalisé** par le client (`make oj-prep` : 16 i/s, 480×832 ou 832×480) ; refusé sinon.
+- `mask` : `points` (pixels de `frame0.jpg`, label 1 = sujet, 0 = à exclure) → SAM 2.1 suit le sujet sur
+  tout le clip → `mask.mkv` (FFV1 sans perte) + `mask_preview.png`.
+- `generate` : preset de `openjutsu/presets/` servi par l'image (`OJ_MODES`). Recast et replace :
+  fenêtres de 77 images, 5 reportées (`continue_motion`, `video_frame_offset`). Sortie `result.mp4`
+  sans audio (le client remet l'audio d'origine), `preview.jpg`.
+- `replace` : Wan 2.2 Animate en mode remplacement : squelette DWPose de la source, décor d'origine
+  (zone du masque élargi remplie de gris), personnage de la référence. Preset `photoreal-replace`.
+- `probe` : VRAM, RAM du conteneur, disque, poids présents, version.
+
+## Tests (0 crédit)
+
+```bash
+python -m pytest -q tests     # fenêtres, assemblage, graphes recast/replace verticaux, refus du handler
+```
