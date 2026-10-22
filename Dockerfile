@@ -56,7 +56,7 @@ RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh core \
  && test -s /comfyui/models/clip_vision/clip_vision_h.safetensors \
  && test -s /comfyui/models/vae/Wan2_1_VAE_bf16.safetensors
 RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh int8 \
- && test -s /comfyui/models/diffusion_models/wan_animate_2_int8_convrot.safetensors \
+ && test -s /comfyui/models/diffusion_models/wan2.2_animate_14B_int8_convrot.safetensors \
  && rm -f /tmp/download_models.sh
 
 # --- Handler fakinflu (remplace /handler.py de worker-comfyui) ---------------------------------------

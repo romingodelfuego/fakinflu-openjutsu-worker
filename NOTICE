@@ -15,7 +15,7 @@ Files taken from Openjutsu:
                                   WanVaceToVideo and EmptyImage; "replace" mode; mask_expand for swap and
                                   replace; OJ_UNET_DTYPE.
   openjutsu/workflows/recast_wan22_animate.json   MODIFIED: unet_name and clip_name match the weights baked
-                                  in this image (wan_animate_2_int8_convrot, umt5_xxl_fp8_e4m3fn_scaled).
+                                  in this image (wan2.2_animate_14B_int8_convrot, umt5_xxl_fp8_e4m3fn_scaled).
   openjutsu/workflows/swap_wan_vace.json, restyle_wan_vace_depth.json   unchanged.
   openjutsu/presets/*.json        unchanged, except photoreal-replace.json (fakinflu, new).
 
