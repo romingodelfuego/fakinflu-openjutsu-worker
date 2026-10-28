@@ -5,10 +5,15 @@
  "prompt": "photorealistic person, natural skin texture, consistent identity, lighting matching the scene",
  "requires_reference_image": true,
  "params": {
-  "steps": 20,
+  "steps": 6,
   "cfg": 1.0,
+  "shift": 8.0,
+  "sampler": "euler",
   "strength": 1.0,
-  "mask_expand": 12,
-  "shift": 5.0
+  "relight": true,
+  "distill": true,
+  "face": true,
+  "mask_expand": 10,
+  "mask_block": 32
  }
 }

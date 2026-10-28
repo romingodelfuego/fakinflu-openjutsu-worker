@@ -1,7 +1,8 @@
 """SAM 2.1 click tracking with binary, lossless FFV1 masks.
 
-From SydFloyd/openjutsu app/sam2_mask.py @ f783a001 (Apache-2.0), unchanged except this docstring and
-release() (frees the GPU for ComfyUI after a mask job)."""
+From SydFloyd/openjutsu app/sam2_mask.py @ f783a001 (Apache-2.0). Modified: release() (frees the GPU for
+ComfyUI after a mask job) and points on several frames ([x, y, label, frame]) : each annotated frame is a
+SAM 2 prompt, propagation forward from the first one, then backward if it is not frame 0."""
 from fractions import Fraction
 import os
 from pathlib import Path
@@ -55,21 +56,32 @@ def propagate_mask(video, points, output, preview):
         pred = _predictor()
         with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16, enabled=torch.cuda.is_available()):
             state = pred.init_state(video_path=str(folder), offload_video_to_cpu=True, offload_state_to_cpu=True)
-            coordinates = np.asarray([p[:2] for p in points], dtype=np.float32)
-            labels = np.asarray([p[2] if len(p) == 3 else 1 for p in points], dtype=np.int32)
-            pred.add_new_points_or_box(state, frame_idx=0, obj_id=1, points=coordinates, labels=labels)
+            by_frame = {}
+            for p in points:
+                frame = min(int(p[3]) if len(p) == 4 else 0, count - 1)
+                by_frame.setdefault(frame, []).append(p)
+            for frame, group in sorted(by_frame.items()):
+                coordinates = np.asarray([p[:2] for p in group], dtype=np.float32)
+                labels = np.asarray([p[2] if len(p) >= 3 else 1 for p in group], dtype=np.int32)
+                pred.add_new_points_or_box(state, frame_idx=frame, obj_id=1, points=coordinates, labels=labels)
             first = cv2.imread(str(folder / "00000.jpg"))
             height, width = first.shape[:2]
+            # masques binaires gardes en memoire (480x832 : ~0,4 Mo/image) pour les ecrire dans l'ordre
+            masks = {}
+            for index, _, logits in pred.propagate_in_video(state):
+                masks[index] = (logits[0, 0] > 0).cpu().numpy().astype(np.uint8) * 255
+            if min(by_frame) > 0:
+                for index, _, logits in pred.propagate_in_video(state, start_frame_idx=min(by_frame), reverse=True):
+                    masks.setdefault(index, (logits[0, 0] > 0).cpu().numpy().astype(np.uint8) * 255)
+            empty = np.zeros((height, width), np.uint8)
+            overlay = first.copy()
+            overlay[masks.get(0, empty) > 0] = (0, 0, 255)
+            cv2.imwrite(str(preview), cv2.addWeighted(first, 0.5, overlay, 0.5, 0))
             with av.open(str(output), "w") as container:
                 stream = container.add_stream("ffv1", rate=Fraction(str(fps)))
                 stream.width, stream.height, stream.pix_fmt = width, height, "gray"
-                for index, _, logits in pred.propagate_in_video(state):
-                    mask = (logits[0, 0] > 0).cpu().numpy().astype(np.uint8) * 255
-                    if index == 0:
-                        overlay = first.copy()
-                        overlay[mask > 0] = (0, 0, 255)
-                        cv2.imwrite(str(preview), cv2.addWeighted(first, 0.5, overlay, 0.5, 0))
-                    for packet in stream.encode(av.VideoFrame.from_ndarray(mask, format="gray")):
+                for index in range(count):
+                    for packet in stream.encode(av.VideoFrame.from_ndarray(masks.get(index, empty), format="gray")):
                         container.mux(packet)
                 for packet in stream.encode():
                     container.mux(packet)

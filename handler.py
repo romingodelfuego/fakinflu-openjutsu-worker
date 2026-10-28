@@ -11,9 +11,11 @@ Entree (contrat transfer.py, contracts/openjutsu.input.schema.json) :
                "ref": image de reference (si le preset l'exige), "mask": mask.mkv (swap, replace)},
    "outputs": {"mask", "mask_preview", "video", "preview", "probe"},
    "outputs_json": {put_url, key} | null,
-   "params":  {"action": "probe|mask|generate", "points": [[x, y, label]], "preset": str,
+   "params":  {"action": "probe|mask|generate", "points": [[x, y, label, frame?]], "preset": str,
                "prompt": str, "seed": int, "max_frames": int|null, "steps": int|null,
-               "cfg": number|null, "shift": number|null}}
+               "cfg": number|null, "shift": number|null,
+               "relight": bool|null, "face": bool|null, "distill": bool|null,      (recast, replace)
+               "mask_expand": 0..64|null, "mask_block": 0..64|null}}             (replace ; null = preset)
 
 Actions :
   probe    : VRAM, RAM du conteneur, disque, version (aucun modele charge).
@@ -214,15 +216,22 @@ def check_video(path):
 
 
 def check_points(points, info):
+    """[x, y], [x, y, label] ou [x, y, label, frame] : pixels du clip, frame 0 par defaut. Au moins un point
+    sujet sur la premiere image annotee (SAM 2 y initialise l'objet)."""
     if not isinstance(points, list) or not points:
-        raise ValueError("params.points required: [[x, y, 1], ...] in frame0.jpg pixels")
+        raise ValueError("params.points required: [[x, y, 1], ...] in clip pixels, optional 4th value = frame index")
     for p in points:
-        if not isinstance(p, list) or len(p) not in (2, 3) or not all(isinstance(v, (int, float)) for v in p):
-            raise ValueError(f"invalid point {p!r}: expected [x, y] or [x, y, label]")
+        if not isinstance(p, list) or len(p) not in (2, 3, 4) or not all(isinstance(v, (int, float)) for v in p):
+            raise ValueError(f"invalid point {p!r}: expected [x, y], [x, y, label] or [x, y, label, frame]")
         if not (0 <= p[0] < info["width"] and 0 <= p[1] < info["height"]):
             raise ValueError(f"point {p!r} outside the {info['width']}x{info['height']} frame")
-        if len(p) == 3 and p[2] not in (0, 1):
+        if len(p) >= 3 and p[2] not in (0, 1):
             raise ValueError(f"point {p!r}: label must be 1 (subject) or 0 (exclude)")
+        if len(p) == 4 and not (p[3] == int(p[3]) and 0 <= p[3] < info.get("frames", float("inf"))):
+            raise ValueError(f"point {p!r}: frame must be an integer in [0, {info.get('frames', '?')})")
+    first = min(int(p[3]) if len(p) == 4 else 0 for p in points)
+    if not any((int(p[3]) if len(p) == 4 else 0) == first and (len(p) < 3 or p[2] == 1) for p in points):
+        raise ValueError(f"frame {first} (first annotated) needs at least one subject point (label 1)")
 
 
 def check_generate(params, roles):
@@ -246,6 +255,7 @@ def check_generate(params, roles):
     for key in ("steps", "max_frames"):
         if params.get(key) is not None and (not isinstance(params[key], int) or params[key] < 1):
             raise ValueError(f"params.{key} must be a positive integer")
+    graph.check_options(params)
     return preset
 
 
@@ -281,7 +291,8 @@ def do_mask(params, paths, outputs, work):
     info = check_video(paths["video"])
     points = params.get("points")
     check_points(points, info)
-    yield {"type": "progress", "step": f"SAM 2.1: {len(points)} point(s), {info['frames']} frames", "pct": 5}
+    annotated = len({int(p[3]) if len(p) == 4 else 0 for p in points})
+    yield {"type": "progress", "step": f"SAM 2.1: {len(points)} point(s) on {annotated} frame(s), {info['frames']} frames", "pct": 5}
     t = time.time()
     mask, preview = os.path.join(work, "mask.mkv"), os.path.join(work, "mask_preview.png")
     try:
@@ -310,8 +321,10 @@ def do_generate(params, preset, paths, outputs, work, prefix, comfy):
                              f"{size[0]}x{size[1]} ({total} frames used): recompute the mask")
     seed = params.get("seed") if params.get("seed") is not None else 0
     prompt = (params.get("prompt") or "").strip()
+    opts = graph.options(preset, params)
     yield {"type": "progress", "pct": 2,
-           "step": f"{preset['id']} ({mode}) {size[0]}x{size[1]}, {total} frames, {len(windows)} window(s)"}
+           "step": f"{preset['id']} ({mode}) {size[0]}x{size[1]}, {total} frames, {len(windows)} window(s)"
+                   + (f", options {opts}" if opts else "")}
 
     names = {}
     if paths.get("ref"):
@@ -319,7 +332,9 @@ def do_generate(params, preset, paths, outputs, work, prefix, comfy):
     if mode in graph.LONG:
         names["video"] = comfy.put(paths["video"], "input.mp4")
         if mode == "replace":
-            names["mask"] = comfy.put(paths["mask"], "mask.mkv")
+            block = os.path.join(work, "mask_replace.mkv")
+            video.replace_mask(paths["mask"], block, opts["mask_expand"], opts["mask_block"], info["frames"])
+            names["mask"] = comfy.put(block, "mask.mkv")
     wait_comfy()
 
     chunks, timings = [], []
@@ -338,7 +353,7 @@ def do_generate(params, preset, paths, outputs, work, prefix, comfy):
                 video.slice_video(paths["mask"], msk, window["start"], window["count"], window["length"], True)
                 names["mask"] = comfy.put(msk, f"mask-{i}.mkv")
         wf = graph.window_graph(preset, prompt, seed, window, i, size, names, prefix,
-                                params.get("steps"), params.get("cfg"), params.get("shift"))
+                                params.get("steps"), params.get("cfg"), params.get("shift"), opts)
         label = f"window {i + 1}/{len(windows)}"
         gen = run_workflow(wf)
         while True:
@@ -368,7 +383,7 @@ def do_generate(params, preset, paths, outputs, work, prefix, comfy):
     yield from outputs.emit("preview", preview, "preview.jpg")
     outputs.write_summary()
     comfy_s = sum(timings)
-    yield {"type": "done", "action": "generate", "preset": preset["id"], "mode": mode, "seed": seed,
+    yield {"type": "done", "action": "generate", "preset": preset["id"], "mode": mode, "seed": seed, "options": opts,
            "frames": total, "windows": len(windows),
            "timings": {"comfy_s": round(comfy_s, 1), "windows_s": timings, "s_per_frame": round(comfy_s / total, 2)}}
 

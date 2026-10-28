@@ -95,16 +95,73 @@ def test_recast_second_window_continues_motion():
 
 def test_replace_graph_portrait():
     (g,) = _window_graphs("photoreal-replace", names={"video": "v.mp4", "ref": "r.png", "mask": "m.mkv"})
-    assert {g[k]["class_type"] for k in g} >= {"WanAnimateToVideo", "DWPreprocessor", "ThresholdMask", "GrowMask",
+    assert {g[k]["class_type"] for k in g} >= {"WanAnimateToVideo", "DWPreprocessor", "ThresholdMask",
                                                "ImageCompositeMasked", "EmptyImage", "TrimVideoLatent", "SaveVideo"}
     assert g["1"]["inputs"]["unet_name"] == "wan2.2_animate_14B_int8_convrot.safetensors"
     assert g["2"]["inputs"]["clip_name"] == "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
     for node in ("30", "24"):
         assert (g[node]["inputs"]["width"], g[node]["inputs"]["height"]) == PORTRAIT
-    assert g["15"]["inputs"]["file"] == "m.mkv" and g["18"]["inputs"]["expand"] == 12
-    assert g["30"]["inputs"]["background_video"] == ["25", 0] and g["30"]["inputs"]["character_mask"] == ["18", 0]
+    # masque deja elargi et en blocs (video.replace_mask) ; decor perce en noir, comme Wan 2.2
+    assert g["15"]["inputs"]["file"] == "m.mkv" and "18" not in g and g["24"]["inputs"]["color"] == 0
+    assert g["30"]["inputs"]["background_video"] == ["25", 0] and g["30"]["inputs"]["character_mask"] == ["23", 0]
+    # template officiel : relight puis lightx2v, euler 6 etapes CFG 1 shift 8, face_video
+    assert g["60"]["inputs"]["lora_name"] == graph.RELIGHT_LORA and g["60"]["inputs"]["model"] == ["1", 0]
+    assert g["61"]["inputs"]["lora_name"] == graph.DISTILL_LORA and g["61"]["inputs"]["model"] == ["60", 0]
+    assert g["4"]["inputs"]["model"] == ["61", 0] and g["4"]["inputs"]["shift"] == 8.0
+    assert (g["40"]["inputs"]["steps"], g["40"]["inputs"]["cfg"], g["40"]["inputs"]["sampler_name"]) == (6, 1.0, "euler")
+    assert g["30"]["inputs"]["face_video"] == ["71", 0] and g["71"]["inputs"]["detect_face"] == "enable"
+    assert g["71"]["inputs"]["detect_body"] == "disable" and g["70"]["inputs"]["crop"] == "disabled"
     assert set(links(g)) <= set(g)
     assert graph.assemble_mode("replace") == "recast"
+
+
+def test_replace_options_from_params():
+    preset = graph.presets()["photoreal-replace"]
+    opts = graph.options(preset, {"relight": False, "face": False, "mask_block": 0, "mask_expand": 4})
+    assert opts == {"relight": False, "face": False, "distill": True, "mask_expand": 4, "mask_block": 0}
+    g = graph.window_graph(preset, "", 0, graph.plan("replace", 33)[0], 0, PORTRAIT,
+                           {"video": "v", "ref": "r", "mask": "m"}, "p", opts=opts)
+    assert "60" not in g and g["61"]["inputs"]["model"] == ["1", 0] and g["4"]["inputs"]["model"] == ["61", 0]
+    assert "face_video" not in g["30"]["inputs"] and "70" not in g and set(links(g)) <= set(g)
+
+
+def test_recast_unchanged_by_default():
+    """Presets d'Openjutsu : aucune option ajoutee (graphe d'origine), relight jamais en recast."""
+    (g,) = _window_graphs("anime-recast", names={"video": "v", "ref": "r"})
+    assert g["4"]["inputs"]["model"] == ["1", 0] and not {"60", "61", "70", "71"} & set(g)
+    opts = graph.options(graph.presets()["anime-recast"], {"relight": True, "face": True})
+    assert opts["relight"] is False and opts["face"] is True
+
+
+def test_options_checked():
+    graph.check_options({"relight": True, "mask_block": 32, "mask_expand": 0})
+    for bad in ({"relight": 1}, {"mask_block": 65}, {"mask_expand": -1}, {"mask_block": True}, {"face": "yes"}):
+        with pytest.raises(ValueError):
+            graph.check_options(bad)
+
+
+def test_block_mask():
+    m = np.zeros((100, 80), np.uint8)
+    m[40:44, 30:33] = 1
+    assert (video.block_mask(m, 0, 0) == m).all()
+    grown = video.block_mask(m, 2, 0)
+    assert grown[38:46, 28:35].all() and grown.sum() == 8 * 7
+    blocks = video.block_mask(m, 0, 32)
+    assert (blocks == m).all()  # boite englobante plus petite qu'un bloc : la boite elle-meme
+    m[70:72, 60:62] = 1  # deuxieme tache : boite 40..72 x 30..62, cases de 32 depuis (40, 30)
+    b = video.block_mask(m, 0, 32)
+    assert b[40:72, 30:62].all() and b.sum() == 32 * 32
+
+
+def test_replace_mask_file(tmp_path):
+    frames = [np.zeros((832, 480, 3), np.uint8) for _ in range(3)]
+    for f in frames:
+        f[400:420, 200:220] = 255
+    src, dst = tmp_path / "m.mkv", tmp_path / "r.mkv"
+    video.write_frames(frames, src, lossless=True)
+    assert video.replace_mask(src, dst, 10, 32, frames=2) == 2
+    out = video.read_frames(dst)
+    assert len(out) == 2 and out[0][390:430, 190:230, 0].min() == 255 and out[0][0, 0, 0] == 0
 
 
 def test_reference_optional_nodes_removed():
@@ -158,9 +215,11 @@ def test_events_unknown_action(handler):
 def test_points_checked(handler):
     info = {"width": 480, "height": 832}
     handler.check_points([[240, 400, 1], [10, 10, 0]], info)
-    for bad in ([], [[500, 10, 1]], [[1, 2, 3]], "x"):
+    handler.check_points([[240, 400, 1], [240, 300, 1, 20], [10, 10, 0, 33]], {**info, "frames": 48})
+    handler.check_points([[240, 300, 1, 12], [10, 10, 0, 30]], {**info, "frames": 48})
+    for bad in ([], [[500, 10, 1]], [[1, 2, 3]], "x", [[1, 2, 1, 48]], [[1, 2, 1, 2.5]], [[1, 2, 0], [3, 4, 1, 5]]):
         with pytest.raises(ValueError):
-            handler.check_points(bad, info)
+            handler.check_points(bad, {**info, "frames": 48})
 
 
 def test_unnormalized_video_refused(handler, tmp_path):
