@@ -8,19 +8,22 @@ This worker includes code and data from Openjutsu:
 
 Files taken from Openjutsu:
   openjutsu/video.py              app/video.py — MODIFIED: normalize() keeps the orientation of the source
-                                  (480x832 for a portrait clip, target_size()); docstring.
-  openjutsu/sam2_mask.py          app/sam2_mask.py — MODIFIED: docstring, release() added.
+                                  (480x832 for a portrait clip, target_size()); docstring; replace_mask() / block_mask()
+                                  (dilation + blocks, after Wan 2.2 get_aug_mask and ComfyUI BlockifyMask).
+  openjutsu/sam2_mask.py          app/sam2_mask.py — MODIFIED: docstring, release() added, points on
+                                  several frames.
   openjutsu/graph.py              workflow() and the window loop of generate() from app/main.py — MODIFIED:
                                   no FastAPI / comfy-sdk; real frame size written into WanAnimateToVideo,
                                   WanVaceToVideo and EmptyImage; "replace" mode; mask_expand for swap and
-                                  replace; OJ_UNET_DTYPE.
+                                  replace; OJ_UNET_DTYPE; Wan Animate options (relight and lightx2v LoRAs,
+                                  face_video) after ComfyUI's official video_wan2_2_14B_animate template.
   openjutsu/workflows/recast_wan22_animate.json   MODIFIED: unet_name and clip_name match the weights baked
                                   in this image (wan2.2_animate_14B_int8_convrot, umt5_xxl_fp8_e4m3fn_scaled).
   openjutsu/workflows/swap_wan_vace.json, restyle_wan_vace_depth.json   unchanged.
   openjutsu/presets/*.json        unchanged, except photoreal-replace.json (fakinflu, new).
 
 New in this worker (fakinflu): handler.py, openjutsu/workflows/replace_wan22_animate.json (Wan 2.2 Animate
-replacement mode: pose + original background + SAM 2 mask), presets/photoreal-replace.json, Dockerfile,
+replacement mode: pose + original background holed in black + block mask, as in Wan 2.2 preprocessing), presets/photoreal-replace.json, Dockerfile,
 download_models.sh, check_weights.py, tests/, transfer.py (fakinflu canonical copy).
 
 Third-party components installed at build time: ComfyUI (runpod/worker-comfyui 5.10.0-base, GPL-3.0),

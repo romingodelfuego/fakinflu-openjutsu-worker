@@ -116,17 +116,6 @@
    "channel": "red"
   }
  },
- "18": {
-  "class_type": "GrowMask",
-  "inputs": {
-   "mask": [
-    "23",
-    0
-   ],
-   "expand": 12,
-   "tapered_corners": true
-  }
- },
  "20": {
   "class_type": "DWPreprocessor",
   "inputs": {
@@ -159,7 +148,7 @@
    "width": 832,
    "height": 480,
    "batch_size": 1,
-   "color": 8355711
+   "color": 0
   }
  },
  "25": {
@@ -177,7 +166,7 @@
    "y": 0,
    "resize_source": true,
    "mask": [
-    "18",
+    "23",
     0
    ]
   }
@@ -220,7 +209,7 @@
     0
    ],
    "character_mask": [
-    "18",
+    "23",
     0
    ]
   }

@@ -20,8 +20,11 @@ soumet les graphes d'Openjutsu au ComfyUI local de l'image, fenêtre par fenêtr
 ```
 
 - `video` : clip **déjà normalisé** par le client (`make oj-prep` : 16 i/s, 480×832 ou 832×480) ; refusé sinon.
-- `mask` : `points` (pixels de `frame0.jpg`, label 1 = sujet, 0 = à exclure) → SAM 2.1 suit le sujet sur
-  tout le clip → `mask.mkv` (FFV1 sans perte) + `mask_preview.png`.
+- `mask` : `points` en pixels du clip, `[x, y, label]` sur la première image ou `[x, y, label, frame]` sur
+  n'importe quelle image (label 1 = sujet, 0 = à exclure). Chaque image annotée corrige le suivi (bras levé,
+  sujet qui réapparaît) ; la première image annotée doit avoir un point sujet. SAM 2.1 suit le sujet sur
+  tout le clip (en avant, puis en arrière si la première image annotée n'est pas l'image 0) → `mask.mkv`
+  (FFV1 sans perte) + `mask_preview.png`.
 - `generate` : preset de `openjutsu/presets/` servi par l'image (`OJ_MODES`). Recast et replace :
   fenêtres de 77 images, 5 reportées (`continue_motion`, `video_frame_offset`). Sortie `result.mp4`
   sans audio (le client remet l'audio d'origine), `preview.jpg`.

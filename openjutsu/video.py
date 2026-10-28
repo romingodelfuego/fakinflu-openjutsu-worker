@@ -1,7 +1,7 @@
 """Local video preparation, overlapping windows, and output assembly.
 
-From SydFloyd/openjutsu app/video.py @ f783a001 (Apache-2.0). fakinflu change: normalize() keeps the
-orientation (480x832 for a portrait source) instead of cropping every clip to 832x480."""
+From SydFloyd/openjutsu app/video.py @ f783a001 (Apache-2.0). fakinflu changes: normalize() keeps the
+orientation (480x832 for a portrait source) instead of cropping every clip to 832x480; replace_mask()."""
 from fractions import Fraction
 from pathlib import Path
 import subprocess
@@ -89,6 +89,39 @@ def write_frames(frames, path, fps=FPS, lossless=False):
                 container.mux(packet)
         for packet in stream.encode():
             container.mux(packet)
+
+
+def block_mask(mask, expand, block):
+    """Masque binaire (H, W) uint8 0/1 -> elargi de `expand` px (carre), puis, si `block` > 0, chaque
+    case de `block` px de la boite englobante touchee par le masque est remplie (BlockifyMask du
+    template ComfyUI, get_aug_mask de Wan 2.2). Meme algorithme que l'apercu de l'interface fakinflu."""
+    out = mask.astype(np.uint8)
+    if expand > 0:
+        import cv2
+        out = cv2.dilate(out, np.ones((2 * expand + 1, 2 * expand + 1), np.uint8))
+    if block > 0 and out.any():
+        ys, xs = np.nonzero(out)
+        y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+        res = out.copy()
+        for y in range(y0, y1, block):
+            for x in range(x0, x1, block):
+                ye, xe = min(y + block, y1), min(x + block, x1)
+                if out[y:ye, x:xe].any():
+                    res[y:ye, x:xe] = 1
+        out = res
+    return out
+
+
+def replace_mask(source, destination, expand, block, frames=None):
+    """Masque du mode replace : chaque image binarisee (> 127), elargie, en blocs -> FFV1 sans perte."""
+    out = []
+    for i, image in enumerate(read_frames(source)):
+        if frames is not None and i >= frames:
+            break
+        m = block_mask(image[:, :, 0] > 127, expand, block)
+        out.append(np.repeat(m[:, :, None] * 255, 3, axis=2).astype(np.uint8))
+    write_frames(out, destination, lossless=True)
+    return len(out)
 
 
 def assemble(chunks, plan, destination, total, mode, audio_source=None):

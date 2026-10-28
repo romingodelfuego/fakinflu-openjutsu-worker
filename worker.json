@@ -21,7 +21,7 @@
     "env": {
       "COMFY_EXTRA_ARGS": "--disable-pinned-memory"
     },
-    "notes": "Reglages reels de l'endpoint (console, 2026-10-22) : ADA_48_PRO en excluant L40, L40S et RTX 6000 Ada, soit PRO 6000 MIG 48GB (1,75 $/h serverless, catalogue RunPod 2026-10-22). Timeout 600 s : un job (sonde, masque, generation) doit tenir en 10 min, les clips entiers demandent plus. Image ~30 Go (unet Wan2.2-Animate-14B int8 ~18 Go + encodeurs ~8 Go + DWPose + SAM 2.1). COMFY_EXTRA_ARGS modifiable sans rebuild.",
+    "notes": "Reglages reels de l'endpoint (console, 2026-10-22) : ADA_48_PRO en excluant L40, L40S et RTX 6000 Ada, soit PRO 6000 MIG 48GB (1,75 $/h serverless, catalogue RunPod 2026-10-22). Timeout 600 s : un job (sonde, masque, generation) doit tenir en 10 min, les clips entiers demandent plus. Image ~32 Go (unet Wan2.2-Animate-14B int8 ~18 Go + encodeurs ~8 Go + LoRA relight et lightx2v ~2,2 Go + DWPose + SAM 2.1). COMFY_EXTRA_ARGS modifiable sans rebuild.",
     "price_per_h": 1.75,
     "excluded_gpu_types": [
       "NVIDIA L40",

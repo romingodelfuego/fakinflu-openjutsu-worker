@@ -11,7 +11,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN grep -q 'character_mask' /comfyui/comfy_extras/nodes_wan.py \
  && for n in WanAnimateToVideo TrimVideoLatent ThresholdMask GrowMask ImageToMask ImageCompositeMasked EmptyImage \
-             LoadVideo GetVideoComponents CreateVideo SaveVideo CLIPVisionEncode ModelSamplingSD3; do \
+             LoadVideo GetVideoComponents CreateVideo SaveVideo CLIPVisionEncode ModelSamplingSD3 \
+             LoraLoaderModelOnly ImageScale; do \
       grep -rqw "$n" /comfyui/nodes.py /comfyui/comfy_extras || { echo "!! missing ComfyUI node: $n"; exit 1; }; \
     done
 
@@ -56,7 +57,10 @@ RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh core \
  && test -s /comfyui/models/clip_vision/clip_vision_h.safetensors \
  && test -s /comfyui/models/vae/Wan2_1_VAE_bf16.safetensors
 RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh int8 \
- && test -s /comfyui/models/diffusion_models/wan2.2_animate_14B_int8_convrot.safetensors \
+ && test -s /comfyui/models/diffusion_models/wan2.2_animate_14B_int8_convrot.safetensors
+RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh loras \
+ && test -s /comfyui/models/loras/wan2.2_animate_14B_relight_lora_bf16.safetensors \
+ && test -s /comfyui/models/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors \
  && rm -f /tmp/download_models.sh
 
 # --- Handler fakinflu (remplace /handler.py de worker-comfyui) ---------------------------------------
