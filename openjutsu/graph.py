@@ -2,7 +2,7 @@
 
 Repris de SydFloyd/openjutsu app/main.py @ f783a001 (Apache-2.0) : `workflow()` et la boucle de
 `generate()`, avec les modifications de docs/openjutsu/annexes/patch_openjutsu.py (fakinflu) :
-  - taille reelle (480x832 ou 832x480) ecrite dans WanAnimateToVideo, WanVaceToVideo et EmptyImage ;
+  - taille reelle (480x832 ou 832x480 en brouillon, 720x1280 ou 1280x720 en final) ecrite dans WanAnimateToVideo, WanVaceToVideo et EmptyImage ;
   - mode `replace` (Wan 2.2 Animate en remplacement : pose + decor d'origine + masque SAM 2), fenetre
     comme recast (77 images, 5 reportees par continue_motion et video_frame_offset) ;
   - `mask_expand` pour swap ; OJ_UNET_DTYPE (ex. fp8_e4m3fn) pour les GPU 48 Go ;
@@ -21,12 +21,16 @@ from openjutsu.video import windows
 ROOT = Path(__file__).resolve().parent
 LONG = ("recast", "replace")  # fenetres longues, continuation par continue_motion
 OUTPUT_NODE = "44"
-SIZES = ((480, 832), (832, 480))
+SIZES = ((480, 832), (832, 480), (720, 1280), (1280, 720))
 ANIMATE = ("recast", "replace")
 RELIGHT_LORA = "wan2.2_animate_14B_relight_lora_bf16.safetensors"
 DISTILL_LORA = "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
+# Unet Wan2.2-Animate-14B (v1) par preset ou par job (params.unet) ; int8 = celui des presets d'origine.
+# fp8 : Kijai v2 (couches visage aussi en fp8 scaled ; la v1 bruitait en grille dans ComfyUI natif).
+UNETS = {"int8": "wan2.2_animate_14B_int8_convrot.safetensors",
+         "fp8": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors"}
 # Reglables par job (params), defauts du preset ; bornes verifiees par check_options.
-OPTIONS = {"relight": bool, "face": bool, "distill": bool, "mask_expand": int, "mask_block": int}
+OPTIONS = {"relight": bool, "face": bool, "distill": bool, "mask_expand": int, "mask_block": int, "unet": str}
 
 
 def options(preset, params=None):
@@ -35,6 +39,7 @@ def options(preset, params=None):
         return {}
     p, params = preset["params"], params or {}
     out = {k: params[k] if params.get(k) is not None else p.get(k, t()) for k, t in OPTIONS.items()}
+    out["unet"] = out["unet"] or "int8"
     if preset["mode"] != "replace":
         out.update(relight=False, mask_expand=0, mask_block=0)
     return out
@@ -45,6 +50,8 @@ def check_options(params):
         v = params.get(k)
         if v is None:
             continue
+        if t is str and v not in UNETS:
+            raise ValueError(f"params.{k} must be one of {', '.join(UNETS)}")
         if t is bool and not isinstance(v, bool):
             raise ValueError(f"params.{k} must be a boolean")
         if t is int and (isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 64):
@@ -83,6 +90,8 @@ def workflow(preset, prompt, seed, length, steps=None, cfg=None, shift=None, siz
     if preset["mode"] == "swap":
         graph["18"]["inputs"]["expand"] = params.get("mask_expand", 8)
     opts = options(preset) if opts is None else opts
+    if opts.get("unet"):
+        graph["1"]["inputs"]["unet_name"] = UNETS[opts["unet"]]
     # LoRA entre l'unet (1) et ModelSamplingSD3 (4), dans l'ordre du template : relight puis lightx2v
     model = ["1", 0]
     for key, node, name in (("relight", "60", RELIGHT_LORA), ("distill", "61", DISTILL_LORA)):

@@ -2,8 +2,8 @@
   "name": "openjutsu",
   "repo": "romingodelfuego/fakinflu-openjutsu-worker",
   "visibility": "private",
-  "description": "fakinflu RunPod serverless worker: Openjutsu (SydFloyd/openjutsu, open source Genjutsu clone) on ComfyUI. Image Dockerfile: recast + replace (Wan 2.2 Animate 14B int8, DWPose) and SAM 2.1 click masks. Inputs: normalized clip (16 fps, 480x832 or 832x480), reference image, mask. Outputs: mask.mkv, result.mp4.",
-  "license": "Openjutsu code: Apache-2.0 (NOTICE). Wan2.2-Animate-14B weights (Comfy-Org/Wan_2.2_ComfyUI_Repackaged): review upstream Wan 2.2 licence; umT5 / CLIP vision: Apache-2.0; DWPose TorchScript, SAM 2.1 (Kijai/sam2-safetensors): Apache-2.0 — review before commercial use",
+  "description": "fakinflu RunPod serverless worker: Openjutsu (SydFloyd/openjutsu, open source Genjutsu clone) on ComfyUI. Image Dockerfile: recast + replace (Wan 2.2 Animate 14B, unet int8 or fp8 per preset, DWPose) and SAM 2.1 click masks. Inputs: normalized clip (16 fps, 480x832 / 832x480 draft or 720x1280 / 1280x720 final), reference image, mask. Outputs: mask.mkv, result.mp4.",
+  "license": "Openjutsu code: Apache-2.0 (NOTICE). Wan2.2-Animate-14B weights (Comfy-Org/Wan_2.2_ComfyUI_Repackaged): review upstream Wan 2.2 licence; Wan2.2-Animate-14B fp8 scaled (Kijai/WanVideo_comfy_fp8_scaled): apache-2.0; umT5 / CLIP vision: Apache-2.0; DWPose TorchScript, SAM 2.1 (Kijai/sam2-safetensors): Apache-2.0 — review before commercial use",
   "endpoint": {
     "name": "fakinflu-openjutsu-worker",
     "env_var": "RUNPOD_OPENJUTSU_ENDPOINT_ID",
@@ -21,7 +21,7 @@
     "env": {
       "COMFY_EXTRA_ARGS": "--disable-pinned-memory"
     },
-    "notes": "Reglages reels de l'endpoint (console, 2026-10-22) : ADA_48_PRO en excluant L40, L40S et RTX 6000 Ada, soit PRO 6000 MIG 48GB (1,75 $/h serverless, catalogue RunPod 2026-10-22). Timeout 600 s : un job (sonde, masque, generation) doit tenir en 10 min, les clips entiers demandent plus. Image ~32 Go (unet Wan2.2-Animate-14B int8 ~18 Go + encodeurs ~8 Go + LoRA relight et lightx2v ~2,2 Go + DWPose + SAM 2.1). COMFY_EXTRA_ARGS modifiable sans rebuild.",
+    "notes": "Reglages reels de l'endpoint (console, 2026-10-22) : ADA_48_PRO en excluant L40, L40S et RTX 6000 Ada, soit PRO 6000 MIG 48GB (1,75 $/h serverless, catalogue RunPod 2026-10-22). Timeout endpoint 600 s, mais chaque job envoie son executionTimeout (policy, prioritaire sur l'endpoint, doc RunPod) : 60 min par defaut, plus pour un final long (borne par la validite des URL R2, 3-4 h). Par fenetre ComfyUI : OPENJUTSU_JOB_TIMEOUT_S (5400 s). Image ~50 Go (unet Wan2.2-Animate-14B int8 ~18 Go + fp8 ~17 Go + encodeurs ~8 Go + LoRA relight et lightx2v ~2,2 Go + DWPose + SAM 2.1). Conteneur : 65 Go de RAM (sonde 2026-10-22). COMFY_EXTRA_ARGS modifiable sans rebuild.",
     "price_per_h": 1.75,
     "excluded_gpu_types": [
       "NVIDIA L40",
@@ -29,5 +29,5 @@
       "NVIDIA RTX 6000 Ada Generation"
     ]
   },
-  "version": "v1.1.0"
+  "version": "v1.2.0"
 }

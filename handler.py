@@ -7,7 +7,7 @@ Squelette (ComfyUI, websocket, OOM, sonde) repris du worker wananimate.
 
 Entree (contrat transfer.py, contracts/openjutsu.input.schema.json) :
   {"run_id", "r2": bool,
-   "inputs":  {"video": clip DEJA normalise par le client (16 i/s, 480x832 ou 832x480),
+   "inputs":  {"video": clip DEJA normalise par le client (16 i/s, 480x832, 832x480, 720x1280 ou 1280x720),
                "ref": image de reference (si le preset l'exige), "mask": mask.mkv (swap, replace)},
    "outputs": {"mask", "mask_preview", "video", "preview", "probe"},
    "outputs_json": {put_url, key} | null,
@@ -15,7 +15,8 @@ Entree (contrat transfer.py, contracts/openjutsu.input.schema.json) :
                "prompt": str, "seed": int, "max_frames": int|null, "steps": int|null,
                "cfg": number|null, "shift": number|null,
                "relight": bool|null, "face": bool|null, "distill": bool|null,      (recast, replace)
-               "mask_expand": 0..64|null, "mask_block": 0..64|null}}             (replace ; null = preset)
+               "mask_expand": 0..64|null, "mask_block": 0..64|null,              (replace ; null = preset)
+               "unet": "int8"|"fp8"|null}}                                        (recast, replace)
 
 Actions :
   probe    : VRAM, RAM du conteneur, disque, version (aucun modele charge).
@@ -31,7 +32,8 @@ from openjutsu import graph, video
 
 COMFY = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
 COMFY_DIR = os.environ.get("COMFY_DIR", "/comfyui")
-JOB_TIMEOUT = int(os.environ.get("OPENJUTSU_JOB_TIMEOUT_S", "3500"))
+# par fenetre : une fenetre finale (720p, 20 etapes sans distill) est estimee a 15-35 min
+JOB_TIMEOUT = int(os.environ.get("OPENJUTSU_JOB_TIMEOUT_S", "5400"))
 MODES = [m.strip() for m in os.environ.get("OJ_MODES", "recast,replace").split(",") if m.strip()]
 ACTIONS = ("probe", "mask", "generate")
 
@@ -205,11 +207,11 @@ def probe_report():
 
 
 def check_video(path):
-    """Le client normalise (16 i/s, 480x832 ou 832x480) : on refuse tout le reste avant le GPU."""
+    """Le client normalise (16 i/s, graph.SIZES) : on refuse tout le reste avant le GPU."""
     info = video.probe(path)
     if (info["width"], info["height"]) not in graph.SIZES or abs(info["fps"] - video.FPS) > 0.05:
         raise ValueError(f"video not normalized: {info['width']}x{info['height']} at {info['fps']:.2f} fps "
-                         f"(expected 480x832 or 832x480 at {video.FPS} fps, see make oj-prep)")
+                         f"(expected {' or '.join(f'{w}x{h}' for w, h in graph.SIZES)} at {video.FPS} fps, see make oj-prep)")
     if not info["frames"]:
         raise ValueError("video has no frames")
     return info
@@ -342,7 +344,7 @@ def do_generate(params, preset, paths, outputs, work, prefix, comfy):
         if mode in graph.LONG:
             if chunks:
                 tail = os.path.join(work, f"continue-{i}.mkv")
-                video.write_frames(video.read_frames(chunks[-1])[-5:], tail, lossless=True)
+                video.write_frames(video.read_tail(chunks[-1], 5), tail, lossless=True)
                 names["continue"] = comfy.put(tail, f"continue-{i}.mkv")
         else:
             src = os.path.join(work, f"input-{i}.mp4")

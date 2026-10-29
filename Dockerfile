@@ -1,4 +1,4 @@
-# fakinflu — worker RunPod : openjutsu, image recast + replace (Wan 2.2 Animate 14B int8 + DWPose + SAM 2.1).
+# fakinflu — worker RunPod : openjutsu, image recast + replace (Wan 2.2 Animate 14B int8 / fp8 + DWPose + SAM 2.1).
 # Openjutsu : SydFloyd/openjutsu @ f783a001 (Apache-2.0, voir NOTICE). Build par RunPod a chaque push sur main.
 # Image swap + restyle (Wan 2.1 VACE) : Dockerfile.vace, endpoint separe (a venir).
 #
@@ -45,7 +45,7 @@ RUN SAM2_BUILD_CUDA=0 pip install --no-cache-dir --no-build-isolation -c /tmp/pi
  && python3 -c "import sam2, av, cv2, imageio_ffmpeg, iopath; from sam2.build_sam import build_sam2_video_predictor" \
  && pip freeze | grep -iE '^(torch|torchvision|torchaudio|numpy|transformers|huggingface-hub|huggingface_hub)==' | diff - /tmp/pins.txt
 
-# --- Poids BAKES (~26 Go) ----------------------------------------------------------------------------
+# --- Poids BAKES (~44 Go : unet int8 ET fp8, choisi par preset) ----------------------------------------------------------------------------
 COPY download_models.sh /tmp/download_models.sh
 RUN MODELS_DIR=/comfyui/custom_nodes/comfyui_controlnet_aux/ckpts bash /tmp/download_models.sh dwpose \
  && test -s /comfyui/custom_nodes/comfyui_controlnet_aux/ckpts/hr16/yolox-onnx/yolox_l.torchscript.pt \
@@ -58,6 +58,8 @@ RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh core \
  && test -s /comfyui/models/vae/Wan2_1_VAE_bf16.safetensors
 RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh int8 \
  && test -s /comfyui/models/diffusion_models/wan2.2_animate_14B_int8_convrot.safetensors
+RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh fp8 \
+ && test -s /comfyui/models/diffusion_models/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors
 RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh loras \
  && test -s /comfyui/models/loras/wan2.2_animate_14B_relight_lora_bf16.safetensors \
  && test -s /comfyui/models/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors \

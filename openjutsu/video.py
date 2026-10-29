@@ -2,6 +2,7 @@
 
 From SydFloyd/openjutsu app/video.py @ f783a001 (Apache-2.0). fakinflu changes: normalize() keeps the
 orientation (480x832 for a portrait source) instead of cropping every clip to 832x480; replace_mask()."""
+from collections import deque
 from fractions import Fraction
 from pathlib import Path
 import subprocess
@@ -74,6 +75,12 @@ def slice_video(source, destination, start, count, length, mask=False):
 def read_frames(path):
     with av.open(str(path)) as container:
         return [frame.to_ndarray(format="rgb24") for frame in container.decode(video=0)]
+
+
+def read_tail(path, n):
+    """Les n dernieres images seulement en memoire (report continue_motion : 5 images d'une fenetre de 77)."""
+    with av.open(str(path)) as container:
+        return list(deque((frame.to_ndarray(format="rgb24") for frame in container.decode(video=0)), maxlen=n))
 
 
 def write_frames(frames, path, fps=FPS, lossless=False):

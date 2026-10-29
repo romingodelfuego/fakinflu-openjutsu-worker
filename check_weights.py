@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Garde-fou de BUILD : chaque poids nomme par les graphes de l'image existe et n'est pas vide.
+"""Garde-fou de BUILD : chaque poids nomme par les graphes de l'image existe et n'est pas vide, ainsi que
+chaque unet que les presets peuvent choisir (openjutsu.graph.UNETS, a cote du dossier workflows).
 
 Usage : check_weights.py <dossier workflows> <dossier models> [graphe ...]
 """
@@ -22,6 +23,12 @@ def main(workflows, models, names):
                 path = Path(models) / sub / node["inputs"][key]
                 if not path.is_file() or not os.path.getsize(path):
                     bad.append(f"{name}: {path}")
+    sys.path.insert(0, str(Path(workflows).resolve().parent.parent))
+    from openjutsu.graph import UNETS
+    for name in UNETS.values():
+        path = Path(models) / "diffusion_models" / name
+        if not path.is_file() or not os.path.getsize(path):
+            bad.append(f"graph.UNETS: {path}")
     if bad:
         print("missing weights:", *bad, sep="\n  ")
         return 1
