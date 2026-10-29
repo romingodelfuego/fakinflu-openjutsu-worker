@@ -7,6 +7,7 @@
 #
 #   MODELS_DIR=/comfyui/models ./download_models.sh core     # ~8 Go : umT5 fp8, CLIP vision H, VAE Wan 2.1
 #   MODELS_DIR=/comfyui/models ./download_models.sh int8     # ~18 Go : Wan2.2-Animate-14B (v1) int8 convrot
+#   MODELS_DIR=/comfyui/models ./download_models.sh fp8      # ~17,3 Go : meme unet en fp8 scaled (Kijai v2), preset final
 #   MODELS_DIR=/comfyui/models ./download_models.sh loras    # ~2,2 Go : LoRA relight + lightx2v
 #   MODELS_DIR=<controlnet_aux>/ckpts ./download_models.sh dwpose
 #   MODELS_DIR=/models/sam2 ./download_models.sh sam2       # ~0,45 Go
@@ -36,6 +37,7 @@ DL() {
 
 WA=e7181fe1896b7f2ce34120d1a3663413548240d7   # Comfy-Org/Wan-Animate-2 @ 2026-10-14 (encodeurs, CLIP vision, VAE)
 W22=ee6f4a40737a995bf5818954cfce6d59443b0f04  # Comfy-Org/Wan_2.2_ComfyUI_Repackaged @ 2026-10-22 (unet Animate v1)
+KJ=033a4e487f60220b3d6e469599a6aebc46e13cee   # Kijai/WanVideo_comfy_fp8_scaled @ 2026-06-13 (apache-2.0)
 
 case "${1:-}" in
   core)
@@ -51,6 +53,12 @@ case "${1:-}" in
     # avec ce checkpoint, le mode replace rendait la zone masquee en silhouette grise (essai 5, 2026-10-22).
     DL Comfy-Org/Wan_2.2_ComfyUI_Repackaged "$W22" split_files/diffusion_models/wan2.2_animate_14B_int8_convrot.safetensors diffusion_models \
        419aa0b3d9079a8a39126f2894c3cb2427c288189d2dc8342c61cf0663731cb3 ;;
+  fp8)
+    # Wan2.2-Animate-14B (v1) fp8 e4m3fn scaled, v2 : couches du visage aussi en fp8 scaled (la v1 de Kijai les
+    # gardait en bf16, ramenees en fp8 simple par ComfyUI natif = bruit en grille, README du depot).
+    # Comfy-Org ne publie que bf16 (34,5 Go, ne tient pas avec les encodeurs sur 48 Go) et int8 ; sha256 = oid LFS (API HF, 2026-10-29).
+    DL Kijai/WanVideo_comfy_fp8_scaled "$KJ" Wan22Animate/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors diffusion_models \
+       b1cd5a67e968e5bb38fcf84dab58f2fb551e0889fd463acb2a657259a70bbbf6 ;;
   dwpose)
     # MODELS_DIR = <comfyui_controlnet_aux>/ckpts, sous-dossier = depot HF (custom_hf_download du pack).
     DL hr16/yolox-onnx a124b32c3b7c5cebda1c7cd96178f0f9d2050125 yolox_l.torchscript.pt hr16/yolox-onnx \
@@ -67,5 +75,5 @@ case "${1:-}" in
        5f4b6b9d3bc745a86e7bfd511f3880d90cf59c3bded9584d92c028f583fa74a3
     DL Comfy-Org/Wan-Animate-2 "$WA" loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors loras \
        85c4a61c30e0497aa44b91d93a893b624708461a56fe5485183b28fa07e2dfb3 ;;
-  *) echo "usage: $0 core|int8|loras|dwpose|sam2" >&2; exit 2 ;;
+  *) echo "usage: $0 core|int8|fp8|loras|dwpose|sam2" >&2; exit 2 ;;
 esac

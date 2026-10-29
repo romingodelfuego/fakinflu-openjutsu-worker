@@ -118,7 +118,7 @@ def test_replace_graph_portrait():
 def test_replace_options_from_params():
     preset = graph.presets()["photoreal-replace"]
     opts = graph.options(preset, {"relight": False, "face": False, "mask_block": 0, "mask_expand": 4})
-    assert opts == {"relight": False, "face": False, "distill": True, "mask_expand": 4, "mask_block": 0}
+    assert opts == {"relight": False, "face": False, "distill": True, "mask_expand": 4, "mask_block": 0, "unet": "int8"}
     g = graph.window_graph(preset, "", 0, graph.plan("replace", 33)[0], 0, PORTRAIT,
                            {"video": "v", "ref": "r", "mask": "m"}, "p", opts=opts)
     assert "60" not in g and g["61"]["inputs"]["model"] == ["1", 0] and g["4"]["inputs"]["model"] == ["61", 0]
@@ -134,8 +134,8 @@ def test_recast_unchanged_by_default():
 
 
 def test_options_checked():
-    graph.check_options({"relight": True, "mask_block": 32, "mask_expand": 0})
-    for bad in ({"relight": 1}, {"mask_block": 65}, {"mask_expand": -1}, {"mask_block": True}, {"face": "yes"}):
+    graph.check_options({"relight": True, "mask_block": 32, "mask_expand": 0, "unet": "fp8"})
+    for bad in ({"relight": 1}, {"mask_block": 65}, {"mask_expand": -1}, {"mask_block": True}, {"face": "yes"}, {"unet": "bf16"}):
         with pytest.raises(ValueError):
             graph.check_options(bad)
 
@@ -174,6 +174,40 @@ def test_unet_dtype_env(monkeypatch):
     monkeypatch.setenv("OJ_UNET_DTYPE", "fp8_e4m3fn")
     (g,) = _window_graphs("photoreal-replace", names={"video": "v", "ref": "r", "mask": "m"})
     assert g["1"]["inputs"]["weight_dtype"] == "fp8_e4m3fn"
+
+
+@pytest.mark.parametrize("size", [(720, 1280), (1280, 720)])
+def test_final_preset_graph_720(size):
+    """Preset final : 720p, 20 etapes sans lightx2v, CFG 1 et shift 5 (config officielle Wan2.2 animate-14B), unet fp8."""
+    preset = graph.presets()["photoreal-replace-final"]
+    windows = graph.plan("replace", 80)
+    assert [(w["start"], w["length"]) for w in windows] == [(0, 77), (72, 9)]
+    for i, w in enumerate(windows):
+        names = {"video": "v", "ref": "r", "mask": "m", **({"continue": "c.mkv"} if i else {})}
+        g = graph.window_graph(preset, "", 7, w, i, size, names, "p", opts=graph.options(preset))
+        for node in ("30", "24"):
+            assert (g[node]["inputs"]["width"], g[node]["inputs"]["height"]) == size
+        assert g["1"]["inputs"]["unet_name"] == graph.UNETS["fp8"]
+        assert (g["40"]["inputs"]["steps"], g["40"]["inputs"]["cfg"], g["40"]["inputs"]["sampler_name"]) == (20, 1.0, "uni_pc")
+        assert g["4"]["inputs"]["shift"] == 5.0 and "61" not in g and g["4"]["inputs"]["model"] == ["60", 0]
+        assert g["30"]["inputs"]["face_video"] == ["71", 0] and set(links(g)) <= set(g)
+
+
+def test_unet_per_job_overrides_preset():
+    preset = graph.presets()["photoreal-replace"]
+    g = graph.window_graph(preset, "", 0, graph.plan("replace", 33)[0], 0, PORTRAIT, {"video": "v", "ref": "r", "mask": "m"},
+                           "p", opts=graph.options(preset, {"unet": "fp8"}))
+    assert g["1"]["inputs"]["unet_name"] == graph.UNETS["fp8"]
+    assert graph.options(graph.presets()["photoreal-replace-final"], {"unet": "int8"})["unet"] == "int8"
+    assert graph.options(graph.presets()["8mm-vintage"]) == {}  # VACE : pas d'unet Wan Animate
+
+
+def test_read_tail(tmp_path):
+    frames = [np.full((64, 48, 3), 10 * i, np.uint8) for i in range(12)]
+    src = tmp_path / "c.mkv"
+    video.write_frames(frames, src, lossless=True)
+    tail = video.read_tail(src, 5)
+    assert len(tail) == 5 and [int(f[0, 0, 0]) for f in tail] == [70, 80, 90, 100, 110]
 
 
 def test_every_preset_has_its_workflow():
@@ -227,3 +261,10 @@ def test_unnormalized_video_refused(handler, tmp_path):
     _clip(p, 5, 0, size=(640, 360))
     with pytest.raises(ValueError, match="not normalized"):
         handler.check_video(str(p))
+
+
+@pytest.mark.parametrize("size", [(720, 1280), (1280, 720)])
+def test_final_sizes_accepted(handler, tmp_path, size):
+    p = tmp_path / "v.mkv"
+    _clip(p, 5, 0, size=size)
+    assert (handler.check_video(str(p))["width"], handler.check_video(str(p))["height"]) == size
