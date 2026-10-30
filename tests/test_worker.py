@@ -178,7 +178,8 @@ def test_unet_dtype_env(monkeypatch):
 
 @pytest.mark.parametrize("size", [(720, 1280), (1280, 720)])
 def test_final_preset_graph_720(size):
-    """Preset final : 720p, 20 etapes sans lightx2v, CFG 1 et shift 5 (config officielle Wan2.2 animate-14B), unet fp8."""
+    """Preset final : 720p, reglages du brouillon (lightx2v, 6 etapes, euler, shift 8), unet fp8. Sans lightx2v, le rendu
+    natif est flou a CFG 1 (A/B du 2026-10-30)."""
     preset = graph.presets()["photoreal-replace-final"]
     windows = graph.plan("replace", 80)
     assert [(w["start"], w["length"]) for w in windows] == [(0, 77), (72, 9)]
@@ -188,8 +189,8 @@ def test_final_preset_graph_720(size):
         for node in ("30", "24"):
             assert (g[node]["inputs"]["width"], g[node]["inputs"]["height"]) == size
         assert g["1"]["inputs"]["unet_name"] == graph.UNETS["fp8"]
-        assert (g["40"]["inputs"]["steps"], g["40"]["inputs"]["cfg"], g["40"]["inputs"]["sampler_name"]) == (20, 1.0, "uni_pc")
-        assert g["4"]["inputs"]["shift"] == 5.0 and "61" not in g and g["4"]["inputs"]["model"] == ["60", 0]
+        assert (g["40"]["inputs"]["steps"], g["40"]["inputs"]["cfg"], g["40"]["inputs"]["sampler_name"]) == (6, 1.0, "euler")
+        assert g["4"]["inputs"]["shift"] == 8.0 and g["61"]["inputs"]["model"] == ["60", 0] and g["4"]["inputs"]["model"] == ["61", 0]
         assert g["30"]["inputs"]["face_video"] == ["71", 0] and set(links(g)) <= set(g)
 
 

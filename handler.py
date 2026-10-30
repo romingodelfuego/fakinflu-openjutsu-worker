@@ -32,7 +32,7 @@ from openjutsu import graph, video
 
 COMFY = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
 COMFY_DIR = os.environ.get("COMFY_DIR", "/comfyui")
-# par fenetre : une fenetre finale (720p, 20 etapes sans distill) est estimee a 15-35 min
+# par fenetre : une fenetre finale (720p, 6 etapes lightx2v) prend quelques minutes ; marge pour les longs clips
 JOB_TIMEOUT = int(os.environ.get("OPENJUTSU_JOB_TIMEOUT_S", "5400"))
 MODES = [m.strip() for m in os.environ.get("OJ_MODES", "recast,replace").split(",") if m.strip()]
 ACTIONS = ("probe", "mask", "generate")
