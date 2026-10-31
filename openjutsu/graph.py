@@ -33,6 +33,36 @@ UNETS = {"int8": "wan2.2_animate_14B_int8_convrot.safetensors",
 OPTIONS = {"relight": bool, "face": bool, "distill": bool, "mask_expand": int, "mask_block": int, "unet": str}
 
 
+# Texte de style, negatif, sampler et scheduler : ceux du preset, remplaces par job (params) s'ils sont donnes.
+SAMPLERS = ("euler", "euler_ancestral", "uni_pc", "uni_pc_bh2", "dpmpp_2m", "dpmpp_sde", "lcm", "res_multistep")
+SCHEDULERS = ("simple", "normal", "beta", "sgm_uniform", "karras", "exponential")
+STYLE_KEYS = ("style", "negative", "sampler", "scheduler")
+
+
+def styled(preset, params=None):
+    """Preset du job : `style` remplace le texte du preset (\"\" = aucun), `negative` le prompt negatif du graphe,
+    `sampler` / `scheduler` ceux du KSampler. Absents ou null : le preset (puis le graphe) s'applique."""
+    params = params or {}
+    out = {**preset, "params": dict(preset["params"])}
+    if params.get("style") is not None:
+        out["prompt"] = params["style"].strip()
+    for k in ("negative", "sampler", "scheduler"):
+        if params.get(k) is not None:
+            out["params"][k] = params[k]
+    return out
+
+
+def check_style(params):
+    for k in ("style", "negative"):
+        v = params.get(k)
+        if v is not None and (not isinstance(v, str) or len(v) > 2000):
+            raise ValueError(f"params.{k} must be a string (2000 characters at most)")
+    for k, allowed in (("sampler", SAMPLERS), ("scheduler", SCHEDULERS)):
+        v = params.get(k)
+        if v is not None and v not in allowed:
+            raise ValueError(f"params.{k} must be one of {', '.join(allowed)}")
+
+
 def options(preset, params=None):
     """Options Wan Animate resolues : params du job, sinon preset, sinon desactivees (comportement d'origine)."""
     if preset["mode"] not in ANIMATE:
@@ -79,10 +109,13 @@ def workflow(preset, prompt, seed, length, steps=None, cfg=None, shift=None, siz
     if os.environ.get("OJ_UNET_DTYPE"):
         graph["1"]["inputs"]["weight_dtype"] = os.environ["OJ_UNET_DTYPE"]
     params = preset["params"]
-    graph["5"]["inputs"]["text"] = (prompt + ", " if prompt else "") + preset["prompt"]
+    graph["5"]["inputs"]["text"] = ", ".join(t for t in (prompt, preset["prompt"]) if t)
+    if params.get("negative") is not None:
+        graph["6"]["inputs"]["text"] = params["negative"]
     graph["40"]["inputs"].update(seed=seed, steps=steps or params["steps"], cfg=params["cfg"] if cfg is None else cfg)
-    if params.get("sampler"):
-        graph["40"]["inputs"]["sampler_name"] = params["sampler"]
+    for key, field in (("sampler", "sampler_name"), ("scheduler", "scheduler")):
+        if params.get(key):
+            graph["40"]["inputs"][field] = params[key]
     graph["4"]["inputs"]["shift"] = params.get("shift", 8.0) if shift is None else shift
     graph["30"]["inputs"]["length"] = length
     if "strength" in graph["30"]["inputs"]:

@@ -5,10 +5,13 @@
  "prompt": "chrome humanoid robot with glowing joints",
  "requires_reference_image": true,
  "params": {
-  "steps": 20,
+  "steps": 6,
   "cfg": 1.0,
+  "shift": 8.0,
+  "sampler": "euler",
   "strength": 1.0,
-  "mask_expand": 8,
-  "shift": 5.0
+  "distill": true,
+  "face": true,
+  "mask_expand": 8
  }
 }
