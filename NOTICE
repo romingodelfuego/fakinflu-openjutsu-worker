@@ -20,7 +20,10 @@ Files taken from Openjutsu:
   openjutsu/workflows/recast_wan22_animate.json   MODIFIED: unet_name and clip_name match the weights baked
                                   in this image (wan2.2_animate_14B_int8_convrot, umt5_xxl_fp8_e4m3fn_scaled).
   openjutsu/workflows/swap_wan_vace.json, restyle_wan_vace_depth.json   unchanged.
-  openjutsu/presets/*.json        unchanged, except photoreal-replace.json (fakinflu, new).
+  openjutsu/presets/*.json        unchanged, except photoreal-replace*.json (fakinflu, new) and the recast
+                                  presets (anime-recast, pixar-3d, robot-recast) — MODIFIED: draft settings of
+                                  photoreal-replace (lightx2v LoRA, 6 steps, euler, shift 8, face video): without
+                                  lightx2v, Wan 2.2 Animate at CFG 1 is blurry in native ComfyUI.
 
 New in this worker (fakinflu): handler.py, openjutsu/workflows/replace_wan22_animate.json (Wan 2.2 Animate
 replacement mode: pose + original background holed in black + block mask, as in Wan 2.2 preprocessing), presets/photoreal-replace.json, Dockerfile,

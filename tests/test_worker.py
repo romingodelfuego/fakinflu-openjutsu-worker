@@ -80,7 +80,8 @@ def test_recast_graph_portrait():
     assert g["30"]["inputs"]["length"] == 33 and g["30"]["inputs"]["video_frame_offset"] == 0
     assert g["10"]["inputs"]["file"] == "oj_x_input.mp4" and g["12"]["inputs"]["image"] == "oj_x_ref.png"
     assert g["5"]["inputs"]["text"].startswith("a boxer, 2D anime character")
-    assert g["40"]["inputs"]["seed"] == 42 and g["40"]["inputs"]["steps"] == 20
+    assert g["40"]["inputs"]["seed"] == 42 and g["40"]["inputs"]["steps"] == 6 and g["40"]["inputs"]["sampler_name"] == "euler"
+    assert g["4"]["inputs"]["shift"] == 8.0
     assert g["44"]["inputs"]["filename_prefix"] == "fakinflu/r1/chunk-0"
     assert "50" not in g and set(links(g)) <= set(g)
 
@@ -125,12 +126,15 @@ def test_replace_options_from_params():
     assert "face_video" not in g["30"]["inputs"] and "70" not in g and set(links(g)) <= set(g)
 
 
-def test_recast_unchanged_by_default():
-    """Presets d'Openjutsu : aucune option ajoutee (graphe d'origine), relight jamais en recast."""
+def test_recast_draft_settings():
+    """Recast = reglages du brouillon replace (lightx2v + visage) ; relight jamais en recast (LoRA de remplacement)."""
     (g,) = _window_graphs("anime-recast", names={"video": "v", "ref": "r"})
-    assert g["4"]["inputs"]["model"] == ["1", 0] and not {"60", "61", "70", "71"} & set(g)
-    opts = graph.options(graph.presets()["anime-recast"], {"relight": True, "face": True})
-    assert opts["relight"] is False and opts["face"] is True
+    assert "61" in g and "60" not in g and {"70", "71"} <= set(g) and set(links(g)) <= set(g)
+    opts = graph.options(graph.presets()["anime-recast"], {"relight": True})
+    assert opts["relight"] is False and opts["distill"] is True and opts["face"] is True
+    # graphe d'origine d'Openjutsu toujours atteignable par job
+    opts = graph.options(graph.presets()["anime-recast"], {"distill": False, "face": False})
+    assert opts["distill"] is False and opts["face"] is False
 
 
 def test_options_checked():
