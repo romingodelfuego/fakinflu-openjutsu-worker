@@ -258,6 +258,7 @@ def check_generate(params, roles):
         if params.get(key) is not None and (not isinstance(params[key], int) or params[key] < 1):
             raise ValueError(f"params.{key} must be a positive integer")
     graph.check_options(params)
+    graph.check_style(params)
     return preset
 
 
@@ -312,6 +313,7 @@ def do_mask(params, paths, outputs, work):
 
 def do_generate(params, preset, paths, outputs, work, prefix, comfy):
     info = check_video(paths["video"])
+    preset = graph.styled(preset, params)  # style, negatif, sampler du job
     mode = preset["mode"]
     size = (info["width"], info["height"])
     total = min(info["frames"], params["max_frames"]) if params.get("max_frames") else info["frames"]

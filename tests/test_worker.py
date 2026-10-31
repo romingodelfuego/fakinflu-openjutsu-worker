@@ -273,3 +273,25 @@ def test_final_sizes_accepted(handler, tmp_path, size):
     p = tmp_path / "v.mkv"
     _clip(p, 5, 0, size=size)
     assert (handler.check_video(str(p))["width"], handler.check_video(str(p))["height"]) == size
+
+
+def test_style_overrides():
+    """Style, negatif, sampler, scheduler remplaces par job ; absents : ceux du preset et du graphe."""
+    base = graph.presets()["photoreal-replace"]
+    p = graph.styled(base, {"style": "2D anime character, cel shading", "negative": "photorealistic, 3D render",
+                            "sampler": "uni_pc", "scheduler": "beta"})
+    g = graph.workflow(p, "a boxer", 1, 33)
+    assert g["5"]["inputs"]["text"] == "a boxer, 2D anime character, cel shading"
+    assert g["6"]["inputs"]["text"] == "photorealistic, 3D render"
+    assert (g["40"]["inputs"]["sampler_name"], g["40"]["inputs"]["scheduler"]) == ("uni_pc", "beta")
+    assert base["prompt"].startswith("photorealistic") and "negative" not in base["params"]  # preset intact
+    g = graph.workflow(graph.styled(base, {"style": ""}), "", 1, 33)
+    assert g["5"]["inputs"]["text"] == "" and g["6"]["inputs"]["text"].startswith("blurry")
+    assert g["40"]["inputs"]["sampler_name"] == "euler"
+
+
+def test_style_checked():
+    graph.check_style({"style": "x", "negative": "", "sampler": "euler", "scheduler": "simple"})
+    for bad in ({"style": 3}, {"negative": "x" * 2001}, {"sampler": "ddim"}, {"scheduler": "foo"}):
+        with pytest.raises(ValueError):
+            graph.check_style(bad)

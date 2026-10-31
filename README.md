@@ -16,7 +16,9 @@ soumet les graphes d'Openjutsu au ComfyUI local de l'image, fenêtre par fenêtr
   "inputs":  {"video": {…}, "ref": {…}, "mask": {…}},
   "outputs": {"mask": {…}, "mask_preview": {…}, "video": {…}, "preview": {…}, "probe": {…}},
   "params": {"action": "probe|mask|generate", "points": [[x, y, 1]], "preset": "photoreal-replace",
-             "prompt": "", "seed": 42, "max_frames": 33, "steps": null, "cfg": null, "shift": null}}}
+             "prompt": "", "seed": 42, "max_frames": 33, "steps": null, "cfg": null, "shift": null,
+             "style": null, "negative": null, "sampler": null, "scheduler": null,
+             "relight": null, "face": null, "distill": null, "mask_expand": null, "mask_block": null, "unet": null}}}
 ```
 
 - `video` : clip **déjà normalisé** par le client (`make oj-prep` : 16 i/s, 480×832 ou 832×480) ; refusé sinon.
@@ -30,6 +32,11 @@ soumet les graphes d'Openjutsu au ComfyUI local de l'image, fenêtre par fenêtr
   sans audio (le client remet l'audio d'origine), `preview.jpg`.
 - `replace` : Wan 2.2 Animate en mode remplacement : squelette DWPose de la source, décor d'origine
   (zone du masque élargi remplie de gris), personnage de la référence. Preset `photoreal-replace`.
+- Tout réglage du preset se remplace par job (`null` = celui du preset) : `style` remplace le texte de style
+  du preset (ajouté après `prompt` ; `""` = aucun), `negative` le prompt négatif du graphe, `sampler` /
+  `scheduler` ceux du KSampler (`graph.SAMPLERS` / `SCHEDULERS`), plus `steps`, `cfg`, `shift` et les options
+  Wan Animate (`relight`, `face`, `distill` = LoRA lightx2v, `mask_expand`, `mask_block`, `unet`). Le preset ne
+  sert que de point de départ : fakinflu y ajoute ses propres presets (base + réglages).
 - `probe` : VRAM, RAM du conteneur, disque, poids présents, version.
 
 ## Tests (0 crédit)
