@@ -132,13 +132,14 @@ def workflow(preset, prompt, seed, length, steps=None, cfg=None, shift=None, siz
             graph[node] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": model, "lora_name": name, "strength_model": 1.0}}
             model = [node, 0]
     graph["4"]["inputs"]["model"] = model
-    # face_video : reperes du visage (DWPose visage seul) sur l'image entiere ramenee a 512x512, sans
-    # recadrage (le template coupe au centre : en vertical, la tete sortirait du cadre)
+    # face_video : gros plan REEL du visage (pixels), comme le pretraitement officiel de Wan 2.2 Animate :
+    # points du visage DWPose (71, sur les images d'origine) -> boite x1.3 -> 512x512 (oj_nodes.OpenjutsuFaceCrop).
+    # Jusqu'a v1.3.0 on y envoyait le dessin des points sur l'image entiere : aucun visage pour le modele.
     if opts.get("face"):
-        graph["70"] = {"class_type": "ImageScale", "inputs": {"image": ["11", 0], "upscale_method": "lanczos", "width": 512, "height": 512, "crop": "disabled"}}
-        graph["71"] = {"class_type": "DWPreprocessor", "inputs": {**graph["20"]["inputs"], "image": ["70", 0],
+        graph["71"] = {"class_type": "DWPreprocessor", "inputs": {**graph["20"]["inputs"], "image": ["11", 0],
                                                                     "detect_hand": "disable", "detect_body": "disable", "detect_face": "enable"}}
-        graph["30"]["inputs"]["face_video"] = ["71", 0]
+        graph["72"] = {"class_type": "OpenjutsuFaceCrop", "inputs": {"images": ["11", 0], "keypoints": ["71", 1], "size": 512}}
+        graph["30"]["inputs"]["face_video"] = ["72", 0]
     return graph
 
 
