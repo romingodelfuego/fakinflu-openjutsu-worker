@@ -69,6 +69,9 @@ RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh loras \
 COPY transfer.py VERSION* /fakinflu/
 COPY openjutsu /fakinflu/openjutsu
 COPY handler.py /handler.py
+# Noeuds ComfyUI du worker (OpenjutsuFaceCrop : face_video = gros plan reel du visage)
+COPY oj_nodes /comfyui/custom_nodes/oj_nodes
+RUN grep -q '"OpenjutsuFaceCrop"' /comfyui/custom_nodes/oj_nodes/__init__.py
 COPY test_input.json /test_input.json
 # Chaque graphe nomme des poids presents dans l'image (echoue le build sinon).
 COPY check_weights.py /tmp/check_weights.py

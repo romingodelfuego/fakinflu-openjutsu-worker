@@ -110,8 +110,11 @@ def test_replace_graph_portrait():
     assert g["61"]["inputs"]["lora_name"] == graph.DISTILL_LORA and g["61"]["inputs"]["model"] == ["60", 0]
     assert g["4"]["inputs"]["model"] == ["61", 0] and g["4"]["inputs"]["shift"] == 8.0
     assert (g["40"]["inputs"]["steps"], g["40"]["inputs"]["cfg"], g["40"]["inputs"]["sampler_name"]) == (6, 1.0, "euler")
-    assert g["30"]["inputs"]["face_video"] == ["71", 0] and g["71"]["inputs"]["detect_face"] == "enable"
-    assert g["71"]["inputs"]["detect_body"] == "disable" and g["70"]["inputs"]["crop"] == "disabled"
+    # face_video = gros plan reel du visage (points DWPose sur les images d'origine -> OpenjutsuFaceCrop)
+    assert g["30"]["inputs"]["face_video"] == ["72", 0] and g["72"]["class_type"] == "OpenjutsuFaceCrop"
+    assert g["72"]["inputs"] == {"images": ["11", 0], "keypoints": ["71", 1], "size": 512}
+    assert g["71"]["inputs"]["image"] == ["11", 0] and g["71"]["inputs"]["detect_face"] == "enable"
+    assert g["71"]["inputs"]["detect_body"] == "disable" and "70" not in g
     assert set(links(g)) <= set(g)
     assert graph.assemble_mode("replace") == "recast"
 
@@ -123,13 +126,13 @@ def test_replace_options_from_params():
     g = graph.window_graph(preset, "", 0, graph.plan("replace", 33)[0], 0, PORTRAIT,
                            {"video": "v", "ref": "r", "mask": "m"}, "p", opts=opts)
     assert "60" not in g and g["61"]["inputs"]["model"] == ["1", 0] and g["4"]["inputs"]["model"] == ["61", 0]
-    assert "face_video" not in g["30"]["inputs"] and "70" not in g and set(links(g)) <= set(g)
+    assert "face_video" not in g["30"]["inputs"] and "71" not in g and "72" not in g and set(links(g)) <= set(g)
 
 
 def test_recast_draft_settings():
     """Recast = reglages du brouillon replace (lightx2v + visage) ; relight jamais en recast (LoRA de remplacement)."""
     (g,) = _window_graphs("anime-recast", names={"video": "v", "ref": "r"})
-    assert "61" in g and "60" not in g and {"70", "71"} <= set(g) and set(links(g)) <= set(g)
+    assert "61" in g and "60" not in g and {"71", "72"} <= set(g) and set(links(g)) <= set(g)
     opts = graph.options(graph.presets()["anime-recast"], {"relight": True})
     assert opts["relight"] is False and opts["distill"] is True and opts["face"] is True
     # graphe d'origine d'Openjutsu toujours atteignable par job
@@ -195,7 +198,7 @@ def test_final_preset_graph_720(size):
         assert g["1"]["inputs"]["unet_name"] == graph.UNETS["fp8"]
         assert (g["40"]["inputs"]["steps"], g["40"]["inputs"]["cfg"], g["40"]["inputs"]["sampler_name"]) == (6, 1.0, "euler")
         assert g["4"]["inputs"]["shift"] == 8.0 and g["61"]["inputs"]["model"] == ["60", 0] and g["4"]["inputs"]["model"] == ["61", 0]
-        assert g["30"]["inputs"]["face_video"] == ["71", 0] and set(links(g)) <= set(g)
+        assert g["30"]["inputs"]["face_video"] == ["72", 0] and set(links(g)) <= set(g)
 
 
 def test_unet_per_job_overrides_preset():
@@ -295,3 +298,45 @@ def test_style_checked():
     for bad in ({"style": 3}, {"negative": "x" * 2001}, {"sampler": "ddim"}, {"scheduler": "foo"}):
         with pytest.raises(ValueError):
             graph.check_style(bad)
+
+
+# --- face_video : gros plan du visage (oj_nodes) ----------------------------------------------------
+
+def _kps(points, w=480, h=832, normalized=True):
+    """POSE_KEYPOINT d'une image : un visage aux points donnes (pixels)."""
+    flat = []
+    for x, y in points:
+        flat += [x / w, y / h, 1.0] if normalized else [x, y, 1.0]
+    return {"people": [{"face_keypoints_2d": flat}], "canvas_width": w, "canvas_height": h}
+
+
+def _square(cx, cy, r):
+    return [(cx + dx, cy + dy) for dx in (-r, 0, r) for dy in (-r, 0, r)]
+
+
+def test_face_boxes_scale_and_holes():
+    from oj_nodes import face_boxes, SCALE
+    face = _kps(_square(240, 100, 20))  # boite des points 40x40
+    kps = [face, {"people": []}, {"people": []}, face]  # dos tourne aux images 1 et 2
+    boxes = face_boxes(kps, 480, 832, 4)
+    assert boxes.shape == (4, 4)
+    side = 40 * np.sqrt(SCALE)
+    for x0, y0, x1, y1 in boxes:  # trous remplis par les voisines, surface x1.3, centre garde
+        assert abs((x1 - x0) - side) <= 1 and abs((x0 + x1) / 2 - 240) <= 1 and abs((y0 + y1) / 2 - 100) <= 1
+
+
+def test_face_boxes_pixels_clamped_and_none():
+    from oj_nodes import face_boxes
+    boxes = face_boxes([_kps(_square(5, 5, 4), normalized=False)], 480, 832, 1)  # visage dans le coin : borne a l'image
+    assert boxes[0][0] == 0 and boxes[0][1] == 0 and boxes[0][2] > 0
+    with pytest.raises(ValueError, match="aucun visage"):
+        face_boxes([{"people": []}] * 3, 480, 832, 3)
+
+
+def test_face_crop_node():
+    torch = pytest.importorskip("torch")
+    from oj_nodes import OpenjutsuFaceCrop
+    images = torch.zeros(2, 832, 480, 3)
+    images[:, 80:120, 220:260, 0] = 1.0  # visage rouge
+    (out,) = OpenjutsuFaceCrop().crop(images, [_kps(_square(240, 100, 20))] * 2, 512)
+    assert tuple(out.shape) == (2, 512, 512, 3) and float(out[:, 256, 256, 0].min()) > 0.9
