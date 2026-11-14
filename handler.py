@@ -8,7 +8,10 @@ Squelette (ComfyUI, websocket, OOM, sonde) repris du worker wananimate.
 Entree (contrat transfer.py, contracts/openjutsu.input.schema.json) :
   {"run_id", "r2": bool,
    "inputs":  {"video": clip DEJA normalise par le client (16 i/s, 480x832, 832x480, 720x1280 ou 1280x720),
-               "ref": image de reference (si le preset l'exige), "mask": mask.mkv (swap, replace)},
+               "ref": image de reference (si le preset l'exige), "mask": mask.mkv (swap, replace),
+               "pose_video": squelette rendu (option, recast/replace : remplace le DWPose du corps),
+               "face_video": gros plan du visage 512x512 (option, recast/replace : remplace DWPose visage + recadrage)},
+               pose_video et face_video = clip ENTIER, memes images et i/s que video (Maquette).
    "outputs": {"mask", "mask_preview", "video", "preview", "probe"},
    "outputs_json": {put_url, key} | null,
    "params":  {"action": "probe|mask|generate", "points": [[x, y, label, frame?]], "preset": str,
@@ -17,6 +20,8 @@ Entree (contrat transfer.py, contracts/openjutsu.input.schema.json) :
                "relight": bool|null, "face": bool|null, "distill": bool|null,      (recast, replace)
                "mask_expand": 0..64|null, "mask_block": 0..64|null,              (replace ; null = preset)
                "unet": "int8"|"fp8"|null}}                                        (recast, replace)
+
+Sortie : evenement done (et error) avec "gpu" = {name, vram_total_gb, vram_start_gb, vram_peak_gb} (VramMeter).
 
 Actions :
   probe    : VRAM, RAM du conteneur, disque, version (aucun modele charge).
@@ -175,6 +180,52 @@ def _gb(b):
     return round(int(b) / 1024 ** 3, 2) if b not in (None, "") and str(b).strip().isdigit() else None
 
 
+class VramMeter:
+    """Pic de VRAM du GPU pendant le job (nvidia-smi toutes les secondes : ComfyUI et SAM 2 compris).
+    Memoire reservee par les process, pas seulement allouee : majorant du besoin. ComfyUI garde ses
+    modeles en VRAM d'un job a l'autre quand elle est libre : sur un gros GPU le pic surestime le minimum."""
+
+    QUERY = ["nvidia-smi", "--query-gpu=name,memory.used,memory.total", "--format=csv,noheader,nounits"]
+
+    def __init__(self, every=1.0):
+        self.every, self.stop = every, threading.Event()
+        self.name = self.total = self.first = self.peak = None
+        self.thread = threading.Thread(target=self._run, daemon=True)
+
+    def _read(self):
+        try:
+            out = subprocess.run(self.QUERY, capture_output=True, text=True, timeout=5).stdout
+            name, used, total = [x.strip() for x in out.splitlines()[0].split(",")]
+            return name, int(used), int(total)
+        except Exception:
+            return None
+
+    def _run(self):
+        while not self.stop.is_set():
+            r = self._read()
+            if r:
+                self.name, used, self.total = r
+                self.first = used if self.first is None else self.first
+                self.peak = max(self.peak or 0, used)
+            self.stop.wait(self.every)
+
+    def start(self):
+        self.thread.start()
+        return self
+
+    def close(self):
+        """Arrete la mesure (idempotent) ; le pic reste lisible par report()."""
+        self.stop.set()
+        self.thread.join(timeout=6)
+
+    def report(self):
+        """{"name", "vram_total_gb", "vram_start_gb", "vram_peak_gb"} (Go, MiB nvidia-smi), null si pas de nvidia-smi."""
+        if self.peak is None:
+            return None
+        gb = lambda mib: round(mib / 1024, 1)
+        return {"name": self.name, "vram_total_gb": gb(self.total), "vram_start_gb": gb(self.first), "vram_peak_gb": gb(self.peak)}
+
+
 def probe_report():
     stats = {}
     try:
@@ -250,6 +301,9 @@ def check_generate(params, roles):
         needed.append("ref")
     if preset["mode"] in ("swap", "replace"):
         needed.append("mask")
+    provided = [r for r in graph.PROVIDED if r in roles]
+    if provided and preset["mode"] not in graph.ANIMATE:
+        raise ValueError(f"inputs {provided} are Wan Animate inputs (recast, replace), not for preset {name} ({preset['mode']})")
     missing = [r for r in needed if r not in roles]
     if missing:
         raise ValueError(f"preset {name} ({preset['mode']}) needs inputs {missing}"
@@ -260,6 +314,19 @@ def check_generate(params, roles):
     graph.check_options(params)
     graph.check_style(params)
     return preset
+
+
+def check_provided(paths, size, total):
+    """Entrees fournies (Maquette) : clip entier aligne sur la video (16 i/s, au moins `total` images) ;
+    pose_video a la taille du clip, face_video en 512x512 (comme OpenjutsuFaceCrop). Refus AVANT le GPU."""
+    expected = {"pose_video": size, "face_video": (512, 512)}
+    for role in graph.PROVIDED:
+        if not paths.get(role):
+            continue
+        info = video.probe(paths[role])
+        if (info["width"], info["height"]) != expected[role] or abs(info["fps"] - video.FPS) > 0.05 or info["frames"] < total:
+            raise ValueError(f"{role} {info['width']}x{info['height']} at {info['fps']:.2f} fps, {info['frames']} frames: expected "
+                             f"{expected[role][0]}x{expected[role][1]} at {video.FPS} fps, at least {total} frames (whole clip, aligned on video)")
 
 
 def thumb(path, dst, at=0.5):
@@ -323,12 +390,14 @@ def do_generate(params, preset, paths, outputs, work, prefix, comfy):
         if (m["width"], m["height"]) != size or m["frames"] < total:
             raise ValueError(f"mask {m['width']}x{m['height']} {m['frames']} frames does not match the video "
                              f"{size[0]}x{size[1]} ({total} frames used): recompute the mask")
+    check_provided(paths, size, total)
     seed = params.get("seed") if params.get("seed") is not None else 0
     prompt = (params.get("prompt") or "").strip()
     opts = graph.options(preset, params)
+    provided = [r for r in graph.PROVIDED if paths.get(r)]
     yield {"type": "progress", "pct": 2,
            "step": f"{preset['id']} ({mode}) {size[0]}x{size[1]}, {total} frames, {len(windows)} window(s)"
-                   + (f", options {opts}" if opts else "")}
+                   + (f", options {opts}" if opts else "") + (f", provided {provided}" if provided else "")}
 
     names = {}
     if paths.get("ref"):
@@ -339,6 +408,9 @@ def do_generate(params, preset, paths, outputs, work, prefix, comfy):
             block = os.path.join(work, "mask_replace.mkv")
             video.replace_mask(paths["mask"], block, opts["mask_expand"], opts["mask_block"], info["frames"])
             names["mask"] = comfy.put(block, "mask.mkv")
+        for role in graph.PROVIDED:
+            if paths.get(role):
+                names[role] = comfy.put(paths[role], role + os.path.splitext(paths[role])[1].lower())
     wait_comfy()
 
     chunks, timings = [], []
@@ -388,6 +460,7 @@ def do_generate(params, preset, paths, outputs, work, prefix, comfy):
     outputs.write_summary()
     comfy_s = sum(timings)
     yield {"type": "done", "action": "generate", "preset": preset["id"], "mode": mode, "seed": seed, "options": opts,
+           **({"provided": provided} if provided else {}),
            "frames": total, "windows": len(windows),
            "timings": {"comfy_s": round(comfy_s, 1), "windows_s": timings, "s_per_frame": round(comfy_s / total, 2)}}
 
@@ -400,6 +473,7 @@ def handler(job):
     prefix = f"fakinflu/{inp.get('run_id') or job.get('id', 'run')}"
     comfy = Comfy(uuid.uuid4().hex[:8])
     t0 = time.time()
+    meter = VramMeter().start()
     yield version_event("openjutsu")
     try:
         if action not in ACTIONS:
@@ -421,14 +495,19 @@ def handler(job):
         preset = check_generate(params, roles) if action == "generate" else None
         paths, events = fetch_inputs(inp, os.path.join(work, "in"), outputs)
         yield from events
-        if action == "mask":
-            yield from do_mask(params, paths, outputs, work)
-        else:
-            yield from do_generate(params, preset, paths, outputs, work, prefix, comfy)
+        steps = do_mask(params, paths, outputs, work) if action == "mask" else do_generate(params, preset, paths, outputs, work, prefix, comfy)
+        for ev in steps:
+            if ev.get("type") == "done":
+                meter.close()
+                ev = {**ev, "gpu": meter.report()}
+                print(f"[openjutsu] gpu: {json.dumps(ev['gpu'])}", flush=True)
+            yield ev
     except Exception as e:
         traceback.print_exc()
-        yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
+        meter.close()
+        yield {"type": "error", "message": f"{type(e).__name__}: {e}", "gpu": meter.report()}
     finally:
+        meter.close()
         shutil.rmtree(work, ignore_errors=True)
         shutil.rmtree(os.path.join(COMFY_DIR, "output", prefix), ignore_errors=True)
         comfy.cleanup()

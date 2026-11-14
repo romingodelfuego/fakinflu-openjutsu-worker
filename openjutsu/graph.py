@@ -10,6 +10,8 @@ Repris de SydFloyd/openjutsu app/main.py @ f783a001 (Apache-2.0) : `workflow()` 
     video_wan2_2_14B_animate : LoRA relight (replace) et lightx2v (distill), face_video (DWPose visage).
     En replace, le masque arrive deja elargi et decoupe en blocs (video.replace_mask) ; le decor est
     perce en NOIR, comme frame * (1 - mask) du pretraitement de Wan 2.2.
+  - entrees fournies (fakinflu, Maquette) : pose_video et face_video donnes par le client remplacent chacun
+    sa detection (DWPose corps ; DWPose visage + OpenjutsuFaceCrop). Sans elles, graphe inchange.
 Fonctions pures (aucun fichier ecrit) : testables sur CPU.
 """
 import json
@@ -37,6 +39,9 @@ OPTIONS = {"relight": bool, "face": bool, "distill": bool, "mask_expand": int, "
 SAMPLERS = ("euler", "euler_ancestral", "uni_pc", "uni_pc_bh2", "dpmpp_2m", "dpmpp_sde", "lcm", "res_multistep")
 SCHEDULERS = ("simple", "normal", "beta", "sgm_uniform", "karras", "exponential")
 STYLE_KEYS = ("style", "negative", "sampler", "scheduler")
+# Entrees fournies (Maquette) : clip ENTIER, memes images que la video (WanAnimateToVideo les decale de
+# video_frame_offset comme la source et le masque). Chacune remplace sa detection ; le masque est deja une entree.
+PROVIDED = ("pose_video", "face_video")
 
 
 def styled(preset, params=None):
@@ -147,7 +152,7 @@ def window_graph(preset, prompt, seed, window, index, size, names, prefix, steps
     """Graphe d'une fenetre. `names` = noms des fichiers deja copies dans input/ de ComfyUI :
     video (clip entier pour recast/replace, tranche de la fenetre pour swap/restyle), ref (option),
     mask (replace : clip entier ; swap : tranche), continue (recast/replace a partir de la 2e fenetre :
-    5 dernieres images de la fenetre precedente)."""
+    5 dernieres images de la fenetre precedente), pose_video / face_video (option, clip entier : provide)."""
     mode = preset["mode"]
     graph = workflow(preset, prompt, seed, window["length"], steps, cfg, shift, size, opts)
     graph["10"]["inputs"]["file"] = names["video"]
@@ -161,6 +166,7 @@ def window_graph(preset, prompt, seed, window, index, size, names, prefix, steps
             graph["30"]["inputs"]["continue_motion"] = ["51", 0]
     elif mode == "swap":
         graph["15"]["inputs"]["file"] = names["mask"]
+    provide(graph, mode, names)
     if names.get("ref"):
         graph["12"]["inputs"]["image"] = names["ref"]
     else:
@@ -170,6 +176,25 @@ def window_graph(preset, prompt, seed, window, index, size, names, prefix, steps
             graph["30"]["inputs"].pop(key, None)
     graph[OUTPUT_NODE]["inputs"]["filename_prefix"] = f"{prefix}/chunk-{index}"
     return graph
+
+
+def provide(graph, mode, names):
+    """Entrees fournies : chaque fichier present dans `names` remplace la detection correspondante.
+    pose_video -> plus de DWPreprocessor du corps (20) ; face_video -> plus de visage detecte (71, 72),
+    lu meme si l'option face est coupee. Aucune entree fournie : le graphe n'est pas touche."""
+    given = [k for k in PROVIDED if names.get(k)]
+    if not given:
+        return
+    if mode not in ANIMATE:
+        raise ValueError(f"inputs {', '.join(given)} are Wan Animate inputs (recast, replace), not for mode {mode}")
+    for key, load, comps in (("pose_video", "26", "27"), ("face_video", "73", "74")):
+        if not names.get(key):
+            continue
+        for node in {"pose_video": ("20",), "face_video": ("71", "72")}[key]:
+            graph.pop(node, None)
+        graph[load] = {"class_type": "LoadVideo", "inputs": {"file": names[key]}}
+        graph[comps] = {"class_type": "GetVideoComponents", "inputs": {"video": [load, 0]}}
+        graph["30"]["inputs"][key] = [comps, 0]
 
 
 def assemble_mode(mode):

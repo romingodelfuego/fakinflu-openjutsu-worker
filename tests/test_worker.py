@@ -254,6 +254,32 @@ def test_events_unknown_action(handler):
     assert events[0]["type"] == "version" and events[-1]["type"] == "error"
 
 
+def test_vram_meter_peak(handler, monkeypatch):
+    used = iter([1000, 30000, 46000, 20000])
+    out = lambda *a, **k: types.SimpleNamespace(stdout=f"NVIDIA RTX PRO 6000, {next(used, 20000)}, 97887\n")
+    monkeypatch.setattr(handler.subprocess, "run", out)
+    m = handler.VramMeter(every=0.01).start()
+    while m.peak is None or m.peak < 46000:
+        pass
+    m.close()
+    r = m.report()
+    assert r == {"name": "NVIDIA RTX PRO 6000", "vram_total_gb": 95.6, "vram_start_gb": 1.0, "vram_peak_gb": 44.9}
+
+
+def test_vram_meter_without_nvidia_smi(handler, monkeypatch):
+    def missing(*a, **k):
+        raise FileNotFoundError("nvidia-smi")
+    monkeypatch.setattr(handler.subprocess, "run", missing)
+    m = handler.VramMeter(every=0.01).start()
+    m.close()
+    assert m.report() is None
+
+
+def test_error_event_carries_gpu(handler):
+    events = list(handler.handler({"id": "j", "input": {"params": {"action": "nope"}}}))
+    assert "gpu" in events[-1]
+
+
 def test_points_checked(handler):
     info = {"width": 480, "height": 832}
     handler.check_points([[240, 400, 1], [10, 10, 0]], info)

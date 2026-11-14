@@ -13,7 +13,7 @@ soumet les graphes d'Openjutsu au ComfyUI local de l'image, fenêtre par fenêtr
 
 ```json
 {"input": {"run_id": "…", "r2": true,
-  "inputs":  {"video": {…}, "ref": {…}, "mask": {…}},
+  "inputs":  {"video": {…}, "ref": {…}, "mask": {…}, "pose_video": {…}, "face_video": {…}},
   "outputs": {"mask": {…}, "mask_preview": {…}, "video": {…}, "preview": {…}, "probe": {…}},
   "params": {"action": "probe|mask|generate", "points": [[x, y, 1]], "preset": "photoreal-replace",
              "prompt": "", "seed": 42, "max_frames": 33, "steps": null, "cfg": null, "shift": null,
@@ -32,6 +32,13 @@ soumet les graphes d'Openjutsu au ComfyUI local de l'image, fenêtre par fenêtr
   sans audio (le client remet l'audio d'origine), `preview.jpg`.
 - `replace` : Wan 2.2 Animate en mode remplacement : squelette DWPose de la source, décor d'origine
   (zone du masque élargi remplie de gris), personnage de la référence. Preset `photoreal-replace`.
+- **Entrées fournies** (Maquette, `recast` et `replace`) : chaque entrée donnée remplace sa détection, les
+  autres restent détectées dans `video`. `pose_video` (squelette rendu, taille du clip) → plus de DWPose du
+  corps ; `face_video` (gros plan du visage déjà recadré, 512×512) → plus de DWPose visage ni
+  `OpenjutsuFaceCrop`, lu même si `face` est coupé ; le masque est déjà une entrée (`mask`, zone exacte : régler
+  `mask_expand` / `mask_block`). Clip **entier**, 16 i/s, au moins autant d'images que `video` et alignées image
+  par image (Wan Animate les décale de `video_frame_offset` à chaque fenêtre) ; refusé sinon, avant le GPU.
+  Refusées pour `swap` / `restyle`. Sans elles, le graphe est strictement celui d'avant (`tests/test_provided_inputs.py`).
 - Tout réglage du preset se remplace par job (`null` = celui du preset) : `style` remplace le texte de style
   du preset (ajouté après `prompt` ; `""` = aucun), `negative` le prompt négatif du graphe, `sampler` /
   `scheduler` ceux du KSampler (`graph.SAMPLERS` / `SCHEDULERS`), plus `steps`, `cfg`, `shift` et les options
@@ -42,5 +49,7 @@ soumet les graphes d'Openjutsu au ComfyUI local de l'image, fenêtre par fenêtr
 ## Tests (0 crédit)
 
 ```bash
-python -m pytest -q tests     # fenêtres, assemblage, graphes recast/replace verticaux, refus du handler
+python -m pytest -q tests     # fenêtres, assemblage, graphes recast/replace verticaux, refus du handler,
+                              # entrées fournies (câblage + non-régression du graphe par défaut)
+python tests/test_provided_inputs.py --freeze   # refige les empreintes du graphe par défaut (changement voulu seulement)
 ```
