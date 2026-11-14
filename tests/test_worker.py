@@ -74,7 +74,7 @@ def _window_graphs(preset_id, total=33, names=None):
 
 def test_recast_graph_portrait():
     (g,) = _window_graphs("anime-recast", names={"video": "oj_x_input.mp4", "ref": "oj_x_ref.png"})
-    assert g["1"]["inputs"]["unet_name"] == "wan2.2_animate_14B_int8_convrot.safetensors"
+    assert g["1"]["inputs"]["unet_name"] == graph.UNETS["fp8"]
     assert g["2"]["inputs"]["clip_name"] == "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
     assert (g["30"]["inputs"]["width"], g["30"]["inputs"]["height"]) == PORTRAIT
     assert g["30"]["inputs"]["length"] == 33 and g["30"]["inputs"]["video_frame_offset"] == 0
@@ -98,7 +98,7 @@ def test_replace_graph_portrait():
     (g,) = _window_graphs("photoreal-replace", names={"video": "v.mp4", "ref": "r.png", "mask": "m.mkv"})
     assert {g[k]["class_type"] for k in g} >= {"WanAnimateToVideo", "DWPreprocessor", "ThresholdMask",
                                                "ImageCompositeMasked", "EmptyImage", "TrimVideoLatent", "SaveVideo"}
-    assert g["1"]["inputs"]["unet_name"] == "wan2.2_animate_14B_int8_convrot.safetensors"
+    assert g["1"]["inputs"]["unet_name"] == graph.UNETS["fp8"]
     assert g["2"]["inputs"]["clip_name"] == "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
     for node in ("30", "24"):
         assert (g[node]["inputs"]["width"], g[node]["inputs"]["height"]) == PORTRAIT
@@ -122,7 +122,7 @@ def test_replace_graph_portrait():
 def test_replace_options_from_params():
     preset = graph.presets()["photoreal-replace"]
     opts = graph.options(preset, {"relight": False, "face": False, "mask_block": 0, "mask_expand": 4})
-    assert opts == {"relight": False, "face": False, "distill": True, "mask_expand": 4, "mask_block": 0, "unet": "int8"}
+    assert opts == {"relight": False, "face": False, "distill": True, "mask_expand": 4, "mask_block": 0, "unet": "fp8"}
     g = graph.window_graph(preset, "", 0, graph.plan("replace", 33)[0], 0, PORTRAIT,
                            {"video": "v", "ref": "r", "mask": "m"}, "p", opts=opts)
     assert "60" not in g and g["61"]["inputs"]["model"] == ["1", 0] and g["4"]["inputs"]["model"] == ["61", 0]
@@ -206,7 +206,11 @@ def test_unet_per_job_overrides_preset():
     g = graph.window_graph(preset, "", 0, graph.plan("replace", 33)[0], 0, PORTRAIT, {"video": "v", "ref": "r", "mask": "m"},
                            "p", opts=graph.options(preset, {"unet": "fp8"}))
     assert g["1"]["inputs"]["unet_name"] == graph.UNETS["fp8"]
-    assert graph.options(graph.presets()["photoreal-replace-final"], {"unet": "int8"})["unet"] == "int8"
+    # int8 retire de l'image (v1.6.0) : refuse avant tout calcul GPU, fp8 par defaut partout
+    with pytest.raises(ValueError, match="must be one of fp8"):
+        graph.check_options({"unet": "int8"})
+    assert set(graph.UNETS) == {"fp8"}
+    assert all(graph.options(p)["unet"] == "fp8" for p in graph.presets().values() if p["mode"] in graph.ANIMATE)
     assert graph.options(graph.presets()["8mm-vintage"]) == {}  # VACE : pas d'unet Wan Animate
 
 

@@ -1,9 +1,9 @@
-# fakinflu — worker RunPod : openjutsu, image recast + replace (Wan 2.2 Animate 14B int8 / fp8 + DWPose + SAM 2.1).
+# fakinflu — worker RunPod : openjutsu, image recast + replace (Wan 2.2 Animate 14B fp8 + DWPose + SAM 2.1).
 # Openjutsu : SydFloyd/openjutsu @ f783a001 (Apache-2.0, voir NOTICE). Build par RunPod a chaque push sur main.
 # Image swap + restyle (Wan 2.1 VACE) : Dockerfile.vace, endpoint separe (a venir).
 #
-# Base : celle de wananimate. 5.10.0-base = ComfyUI 0.34.0, qui sait charger l'unet Wan Animate 2 int8
-# 'convrot' (le latest-base initial faisait "no match" sur ce checkpoint). Les garde-fous ci-dessous
+# Base : celle de wananimate. 5.10.0-base = ComfyUI 0.34.0 (charge l'unet fp8 scaled de Kijai ; l'int8 'convrot',
+# retire en v1.6.0, faisait "no match" sur le latest-base initial). Les garde-fous ci-dessous
 # echouent le BUILD si un noeud des graphes manque : on le sait sans payer un job GPU.
 ARG WORKER_TAG=5.10.0-base
 FROM runpod/worker-comfyui:${WORKER_TAG}
@@ -45,7 +45,7 @@ RUN SAM2_BUILD_CUDA=0 pip install --no-cache-dir --no-build-isolation -c /tmp/pi
  && python3 -c "import sam2, av, cv2, imageio_ffmpeg, iopath; from sam2.build_sam import build_sam2_video_predictor" \
  && pip freeze | grep -iE '^(torch|torchvision|torchaudio|numpy|transformers|huggingface-hub|huggingface_hub)==' | diff - /tmp/pins.txt
 
-# --- Poids BAKES (~44 Go : unet int8 ET fp8, choisi par preset) ----------------------------------------------------------------------------
+# --- Poids BAKES (~27 Go : unet fp8 seul depuis v1.6.0 ; avec l'int8 en plus, le build depassait 30 min) ----------------------------------------------------------------------------
 COPY download_models.sh /tmp/download_models.sh
 RUN MODELS_DIR=/comfyui/custom_nodes/comfyui_controlnet_aux/ckpts bash /tmp/download_models.sh dwpose \
  && test -s /comfyui/custom_nodes/comfyui_controlnet_aux/ckpts/hr16/yolox-onnx/yolox_l.torchscript.pt \
@@ -56,8 +56,6 @@ RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh core \
  && test -s /comfyui/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors \
  && test -s /comfyui/models/clip_vision/clip_vision_h.safetensors \
  && test -s /comfyui/models/vae/Wan2_1_VAE_bf16.safetensors
-RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh int8 \
- && test -s /comfyui/models/diffusion_models/wan2.2_animate_14B_int8_convrot.safetensors
 RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh fp8 \
  && test -s /comfyui/models/diffusion_models/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors
 RUN MODELS_DIR=/comfyui/models bash /tmp/download_models.sh loras \

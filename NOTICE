@@ -18,7 +18,7 @@ Files taken from Openjutsu:
                                   replace; OJ_UNET_DTYPE; Wan Animate options (relight and lightx2v LoRAs,
                                   face_video) after ComfyUI's official video_wan2_2_14B_animate template.
   openjutsu/workflows/recast_wan22_animate.json   MODIFIED: unet_name and clip_name match the weights baked
-                                  in this image (wan2.2_animate_14B_int8_convrot, umt5_xxl_fp8_e4m3fn_scaled).
+                                  in this image (Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2, umt5_xxl_fp8_e4m3fn_scaled).
   openjutsu/workflows/swap_wan_vace.json, restyle_wan_vace_depth.json   unchanged.
   openjutsu/presets/*.json        unchanged, except photoreal-replace*.json (fakinflu, new) and the recast
                                   presets (anime-recast, pixar-3d, robot-recast) — MODIFIED: draft settings of
