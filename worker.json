@@ -29,5 +29,5 @@
     },
     "notes": "Reglages reels de l'endpoint (2026-11-12) : GPU 48 Go A40, PRO_5999_MIG_48GB, RTX_PRO_5000, L40S, L40, RTX_6000_Ada, RTX_A6000 (meme liste que les pods) ; tarif = le plus cher, PRO_5999_MIG_48GB 1,00 $/h, derive du pool (POOL_USD_H), plus de price_per_h ici. Timeout endpoint 600 s, mais chaque job envoie son executionTimeout (policy, prioritaire sur l'endpoint, doc RunPod) : 60 min par defaut, plus pour un final long (borne par la validite des URL R2, 3-4 h). Par fenetre ComfyUI : OPENJUTSU_JOB_TIMEOUT_S (5400 s). Image ~50 Go (unet Wan2.2-Animate-14B int8 ~18 Go + fp8 ~17 Go + encodeurs ~8 Go + LoRA relight et lightx2v ~2,2 Go + DWPose + SAM 2.1). Conteneur : 65 Go de RAM (sonde 2026-10-22). COMFY_EXTRA_ARGS modifiable sans rebuild."
   },
-  "version": "v1.4.0"
+  "version": "v1.5.0"
 }
