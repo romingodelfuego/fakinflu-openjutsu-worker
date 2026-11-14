@@ -24,7 +24,7 @@ def default_matrix():
     """(nom, graphe) : chaque preset x options (preset, toutes coupees, toutes au maximum) x taille x fenetres 1 et 2,
     plus chaque sampler / scheduler. Aucune entree fournie : c'est le chemin /replace d'aujourd'hui."""
     presets = graph.presets()
-    variants = {"defauts": {}, "sans-options": {"relight": False, "face": False, "distill": False, "mask_expand": 0, "mask_block": 0, "unet": "int8"},
+    variants = {"defauts": {}, "sans-options": {"relight": False, "face": False, "distill": False, "mask_expand": 0, "mask_block": 0, "unet": "fp8"},
                 "tout": {"relight": True, "face": True, "distill": True, "mask_expand": 64, "mask_block": 8, "unet": "fp8"}}
     for pid in sorted(presets):
         preset = presets[pid]

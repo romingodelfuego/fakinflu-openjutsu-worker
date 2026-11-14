@@ -19,7 +19,7 @@ Entree (contrat transfer.py, contracts/openjutsu.input.schema.json) :
                "cfg": number|null, "shift": number|null,
                "relight": bool|null, "face": bool|null, "distill": bool|null,      (recast, replace)
                "mask_expand": 0..64|null, "mask_block": 0..64|null,              (replace ; null = preset)
-               "unet": "int8"|"fp8"|null}}                                        (recast, replace)
+               "unet": "fp8"|null}}                                              (recast, replace)
 
 Sortie : evenement done (et error) avec "gpu" = {name, vram_total_gb, vram_start_gb, vram_peak_gb} (VramMeter).
 

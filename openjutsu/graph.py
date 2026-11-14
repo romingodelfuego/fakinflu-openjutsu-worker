@@ -27,10 +27,11 @@ SIZES = ((480, 832), (832, 480), (720, 1280), (1280, 720))
 ANIMATE = ("recast", "replace")
 RELIGHT_LORA = "wan2.2_animate_14B_relight_lora_bf16.safetensors"
 DISTILL_LORA = "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
-# Unet Wan2.2-Animate-14B (v1) par preset ou par job (params.unet) ; int8 = celui des presets d'origine.
+# Unet Wan2.2-Animate-14B (v1) : fp8 seul depuis v1.6.0. L'int8 convrot (presets d'origine d'Openjutsu) est retire de
+# l'image : meme rendu en 480 (A/B f46170 / 114e7e), 40 % plus cher en 720 (facture 0fa6a0 contre 29d4e8), et ses
+# 18 Go faisaient depasser la limite de build RunPod (30 min, builds v1.4.0 et v1.5.0 en echec).
 # fp8 : Kijai v2 (couches visage aussi en fp8 scaled ; la v1 bruitait en grille dans ComfyUI natif).
-UNETS = {"int8": "wan2.2_animate_14B_int8_convrot.safetensors",
-         "fp8": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors"}
+UNETS = {"fp8": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors"}
 # Reglables par job (params), defauts du preset ; bornes verifiees par check_options.
 OPTIONS = {"relight": bool, "face": bool, "distill": bool, "mask_expand": int, "mask_block": int, "unet": str}
 
@@ -74,7 +75,7 @@ def options(preset, params=None):
         return {}
     p, params = preset["params"], params or {}
     out = {k: params[k] if params.get(k) is not None else p.get(k, t()) for k, t in OPTIONS.items()}
-    out["unet"] = out["unet"] or "int8"
+    out["unet"] = out["unet"] or "fp8"
     if preset["mode"] != "replace":
         out.update(relight=False, mask_expand=0, mask_block=0)
     return out

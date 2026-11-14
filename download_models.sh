@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # fakinflu — poids du worker openjutsu (image recast + replace), BAKES dans l'image.
-# Cibles core / dwpose : memes fichiers, commits et sha256 que wananimate/serverless/download_models.sh ; int8 : unet
-# Wan2.2-Animate-14B v1 (celui des graphes d'Openjutsu), pas Wan-Animate-2.
+# Cibles core / dwpose : memes fichiers, commits et sha256 que wananimate/serverless/download_models.sh ; fp8 : unet
+# Wan2.2-Animate-14B v1 (celui des graphes d'Openjutsu), pas Wan-Animate-2 (seul unet de l'image depuis v1.6.0).
 # loras : relight + lightx2v du template officiel ComfyUI Wan Animate (replace : 6 etapes, CFG 1).
 # sam2 : checkpoint SAM 2.1 Hiera Large fp16 lu par openjutsu/sam2_mask.py (chargement strict du state dict).
 #
 #   MODELS_DIR=/comfyui/models ./download_models.sh core     # ~8 Go : umT5 fp8, CLIP vision H, VAE Wan 2.1
-#   MODELS_DIR=/comfyui/models ./download_models.sh int8     # ~18 Go : Wan2.2-Animate-14B (v1) int8 convrot
-#   MODELS_DIR=/comfyui/models ./download_models.sh fp8      # ~17,3 Go : meme unet en fp8 scaled (Kijai v2), preset final
+#   MODELS_DIR=/comfyui/models ./download_models.sh fp8      # ~17,3 Go : unet en fp8 scaled (Kijai v2), tous les presets
 #   MODELS_DIR=/comfyui/models ./download_models.sh loras    # ~2,2 Go : LoRA relight + lightx2v
 #   MODELS_DIR=<controlnet_aux>/ckpts ./download_models.sh dwpose
 #   MODELS_DIR=/models/sam2 ./download_models.sh sam2       # ~0,45 Go
@@ -47,14 +46,10 @@ case "${1:-}" in
        64a7ef761bfccbadbaa3da77366aac4185a6c58fa5de5f589b42a65bcc21f161
     DL Comfy-Org/Wan-Animate-2 "$WA" vae/Wan2_1_VAE_bf16.safetensors vae \
        1ab9a32cc2c740f6e39d80d367ce5dcc28db8c71b79b28670546b8973e9d75f9 ;;
-  int8)
-    # Wan2.2-Animate-14B (v1), le modele des graphes d'Openjutsu (WanAnimateToVideo : pose, decor, masque).
-    # PAS Comfy-Org/Wan-Animate-2 (Wan2.2-Animate-2-14B, noeud WanAnimate2ToVideo, sans mode remplacement) :
-    # avec ce checkpoint, le mode replace rendait la zone masquee en silhouette grise (essai 5, 2026-10-22).
-    DL Comfy-Org/Wan_2.2_ComfyUI_Repackaged "$W22" split_files/diffusion_models/wan2.2_animate_14B_int8_convrot.safetensors diffusion_models \
-       419aa0b3d9079a8a39126f2894c3cb2427c288189d2dc8342c61cf0663731cb3 ;;
   fp8)
-    # Wan2.2-Animate-14B (v1) fp8 e4m3fn scaled, v2 : couches du visage aussi en fp8 scaled (la v1 de Kijai les
+    # Wan2.2-Animate-14B (v1), le modele des graphes d'Openjutsu (WanAnimateToVideo : pose, decor, masque).
+    # PAS Comfy-Org/Wan-Animate-2 (Wan2.2-Animate-2-14B, sans mode remplacement : silhouette grise, essai 5, 2026-10-22).
+    # fp8 e4m3fn scaled, v2 : couches du visage aussi en fp8 scaled (la v1 de Kijai les
     # gardait en bf16, ramenees en fp8 simple par ComfyUI natif = bruit en grille, README du depot).
     # Comfy-Org ne publie que bf16 (34,5 Go, ne tient pas avec les encodeurs sur 48 Go) et int8 ; sha256 = oid LFS (API HF, 2026-10-29).
     DL Kijai/WanVideo_comfy_fp8_scaled "$KJ" Wan22Animate/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors diffusion_models \
@@ -75,5 +70,5 @@ case "${1:-}" in
        5f4b6b9d3bc745a86e7bfd511f3880d90cf59c3bded9584d92c028f583fa74a3
     DL Comfy-Org/Wan-Animate-2 "$WA" loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors loras \
        85c4a61c30e0497aa44b91d93a893b624708461a56fe5485183b28fa07e2dfb3 ;;
-  *) echo "usage: $0 core|int8|fp8|loras|dwpose|sam2" >&2; exit 2 ;;
+  *) echo "usage: $0 core|fp8|loras|dwpose|sam2" >&2; exit 2 ;;
 esac
